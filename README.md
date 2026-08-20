@@ -57,6 +57,36 @@ Seeded development credential:
 
 The API files in `api/` are Vercel serverless functions. The local adapter in `server/local-api.mjs` runs those same handlers during `npm run dev`.
 
+Available API routes:
+
+```bash
+GET    /api/health
+POST   /api/login
+GET    /api/summary
+GET    /api/users
+POST   /api/users
+PATCH  /api/users
+DELETE /api/users?id=<user-id>
+GET    /api/subjects
+POST   /api/subjects
+PATCH  /api/subjects
+DELETE /api/subjects?id=<subject-id>
+GET    /api/assignments
+POST   /api/assignments
+PATCH  /api/assignments
+DELETE /api/assignments?id=<assignment-id>
+```
+
+Write operations require Super Admin credentials and a server-side Supabase service key:
+
+```bash
+curl -X POST http://127.0.0.1:8787/api/users \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Email: admin@kgr.ac.in" \
+  -H "X-Admin-Password: admin123" \
+  -d "{\"name\":\"Faculty Name\",\"email\":\"faculty@kgr.ac.in\",\"password\":\"change-me\",\"role\":\"faculty\",\"title\":\"Faculty\"}"
+```
+
 To test through Vercel CLI instead, run:
 
 ```bash

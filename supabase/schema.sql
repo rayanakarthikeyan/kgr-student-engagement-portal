@@ -7,10 +7,16 @@ CREATE TABLE IF NOT EXISTS public.users (
   email TEXT NOT NULL UNIQUE,
   password TEXT NOT NULL,
   role TEXT NOT NULL,
-  title TEXT
+  title TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
 CREATE INDEX IF NOT EXISTS users_email_idx ON public.users (email);
+CREATE INDEX IF NOT EXISTS users_role_idx ON public.users (role);
 
 -- Subjects table
 CREATE TABLE IF NOT EXISTS public.subjects (
@@ -18,8 +24,20 @@ CREATE TABLE IF NOT EXISTS public.subjects (
   name TEXT NOT NULL,
   type TEXT NOT NULL,
   semester TEXT NOT NULL,
-  section TEXT NOT NULL
+  section TEXT NOT NULL,
+  department TEXT,
+  academic_year TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.subjects ADD COLUMN IF NOT EXISTS department TEXT;
+ALTER TABLE public.subjects ADD COLUMN IF NOT EXISTS academic_year TEXT;
+ALTER TABLE public.subjects ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE public.subjects ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+CREATE INDEX IF NOT EXISTS subjects_type_idx ON public.subjects (type);
+CREATE INDEX IF NOT EXISTS subjects_semester_idx ON public.subjects (semester);
 
 -- Assignments table
 CREATE TABLE IF NOT EXISTS public.assignments (
@@ -30,8 +48,14 @@ CREATE TABLE IF NOT EXISTS public.assignments (
   assigned INTEGER DEFAULT 0,
   submitted INTEGER DEFAULT 0,
   pending INTEGER DEFAULT 0,
-  reviewed INTEGER DEFAULT 0
+  reviewed INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.assignments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+CREATE INDEX IF NOT EXISTS assignments_subject_idx ON public.assignments (subject_id);
+CREATE INDEX IF NOT EXISTS assignments_due_date_idx ON public.assignments (due_date);
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
