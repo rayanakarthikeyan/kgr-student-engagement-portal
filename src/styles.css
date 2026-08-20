@@ -309,6 +309,38 @@ textarea,
   padding-right: 6px;
 }
 
+.empty-state {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-height: 150px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 22px;
+  color: #64748b;
+}
+
+.empty-state.large {
+  min-height: 260px;
+}
+
+.empty-state h2,
+.empty-state h3,
+.empty-state p {
+  margin: 0;
+}
+
+.empty-state h2,
+.empty-state h3 {
+  color: #111827;
+}
+
+.empty-state .button {
+  width: fit-content;
+  margin-top: 8px;
+}
+
 .assignment-card {
   display: grid;
   gap: 12px;

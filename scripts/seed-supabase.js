@@ -9,14 +9,11 @@ dotenv.config();
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.SUPABASE_SECRET_KEY ||
-  process.env.SUPABASE_ANON_KEY ||
-  process.env.SUPABASE_PUBLISHABLE_KEY ||
-  process.env.VITE_SUPABASE_ANON_KEY;
+  process.env.SUPABASE_SECRET_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
   console.error("Missing Supabase environment variables in .env");
-  console.error("Required: VITE_SUPABASE_URL and one of SUPABASE_SERVICE_ROLE_KEY, SUPABASE_SECRET_KEY, SUPABASE_ANON_KEY, SUPABASE_PUBLISHABLE_KEY, or VITE_SUPABASE_ANON_KEY");
+  console.error("Required: SUPABASE_URL or VITE_SUPABASE_URL, plus SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY");
   process.exit(1);
 }
 
@@ -26,10 +23,24 @@ async function seed() {
   const seedPath = resolve("server/db.seed.json");
   const seedData = JSON.parse(readFileSync(seedPath, "utf8"));
 
-  console.log("Seeding Users...");
+  console.log("Clearing learning demo data...");
+  const clearSteps = [
+    ["assignments", "id"],
+    ["subjects", "id"],
+    ["users", "id"],
+  ];
+
+  for (const [table, column] of clearSteps) {
+    const { error } = await supabase.from(table).delete().neq(column, "__seed_keep_none__");
+    if (error) {
+      throw new Error(`Error clearing ${table}: ${error.message}`);
+    }
+  }
+
+  console.log("Seeding Super Admin...");
   for (const user of seedData.users) {
     const { error } = await supabase.from("users").upsert(user);
-    if (error) console.error("Error inserting user:", error.message);
+    if (error) throw new Error(`Error inserting user: ${error.message}`);
   }
 
   console.log("Seeding Subjects...");
@@ -41,7 +52,7 @@ async function seed() {
       semester: subject.semester,
       section: subject.section
     });
-    if (error) console.error("Error inserting subject:", error.message);
+    if (error) throw new Error(`Error inserting subject: ${error.message}`);
   }
 
   console.log("Seeding Assignments...");
@@ -56,10 +67,10 @@ async function seed() {
       pending: assignment.pending,
       reviewed: assignment.reviewed
     });
-    if (error) console.error("Error inserting assignment:", error.message);
+    if (error) throw new Error(`Error inserting assignment: ${error.message}`);
   }
 
-  console.log("Seeding completed.");
+  console.log("Seed completed. Only the Super Admin account is present.");
 }
 
 seed().catch(console.error);

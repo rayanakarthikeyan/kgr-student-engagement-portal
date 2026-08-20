@@ -47,11 +47,11 @@ SUPABASE_SECRET_KEY="your-secret-key"
 npm run seed:supabase
 ```
 
-Test credentials:
+Seeded development credential:
 
 - Super Admin: `admin@kgr.ac.in` / `admin123`
-- Faculty: `umashankar@kgr.ac.in` / `123dskgr`
-- Student: `karthikeyan@kgr.ac.in` / `password123`
+
+`npm run seed:supabase` clears seeded learning demo data and leaves only the Super Admin account. Use Super Admin to create faculty and student accounts during development.
 
 ## Local API Testing
 
