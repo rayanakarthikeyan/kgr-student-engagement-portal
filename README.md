@@ -47,6 +47,12 @@ SUPABASE_SECRET_KEY="your-secret-key"
 npm run seed:supabase
 ```
 
+If you added sensitive Supabase variables in Vercel, `vercel env pull` may write `[SENSITIVE]` placeholders instead of plaintext secrets. For local seeding, create a local `.env` file with real Supabase values:
+
+```bash
+npm run seed:supabase
+```
+
 Seeded development credential:
 
 - Super Admin: `admin@kgr.ac.in` / `admin123`
