@@ -6,6 +6,7 @@ import summary from "../api/summary.js";
 import users from "../api/users.js";
 import subjects from "../api/subjects.js";
 import assignments from "../api/assignments.js";
+import bootstrapAdmin from "../api/bootstrap-admin.js";
 
 const HOST = process.env.HOST ?? "127.0.0.1";
 const PORT = Number(process.env.PORT ?? 8787);
@@ -17,6 +18,7 @@ const routes = {
   "/api/users": users,
   "/api/subjects": subjects,
   "/api/assignments": assignments,
+  "/api/bootstrap-admin": bootstrapAdmin,
 };
 
 async function readBody(request) {
