@@ -332,3 +332,22 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = '' AS $$
 $$;
 REVOKE ALL ON FUNCTION public.kgr_submission_summary() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.kgr_submission_summary() TO service_role;
+
+-- Course cohorts for publishing rules
+CREATE TABLE IF NOT EXISTS public.course_cohorts (
+  id TEXT PRIMARY KEY,
+  course_id TEXT NOT NULL,
+  target_audience TEXT NOT NULL,
+  department TEXT,
+  academic_year TEXT,
+  sections JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS course_cohorts_course_idx ON public.course_cohorts (course_id);
+
+ALTER TABLE public.course_cohorts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Course cohorts are viewable by everyone" ON public.course_cohorts FOR SELECT USING (true);
+CREATE POLICY "Only faculty can insert cohorts" ON public.course_cohorts FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('faculty', 'admin'))
+);

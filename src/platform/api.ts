@@ -237,6 +237,23 @@ export async function publishCourseToCohort(
   });
 }
 
+export async function loadPublishedCohorts(token: string) {
+  const data = await parseResponse(
+    await fetch(`${API_BASE}/api/platform?entity=course-publish`, {
+      headers: authHeaders(token),
+    }),
+  );
+  return (data.course_cohorts || []) as Array<{
+    id: string;
+    course_id: string;
+    target_audience: "all" | "cohort";
+    department?: string;
+    academic_year?: string;
+    sections?: string[];
+    created_at: string;
+  }>;
+}
+
 export async function publishResource(
   token: string,
   resource: Pick<

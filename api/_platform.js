@@ -40,6 +40,7 @@ const entityTables = {
   assessment: "assessments",
   submission: "submissions",
   activity: "activity_logs",
+  "course-publish": "course_cohorts",
 };
 
 function metadata(value) {
@@ -70,6 +71,12 @@ export default async function handler(req, res) {
     const actor = await requireUser(supabase, req);
 
     if (req.method === "GET") {
+      if (
+        entity === "course-publish" &&
+        !["faculty", "admin"].includes(actor.role)
+      ) {
+        return res.status(403).json({ error: "Faculty access is required" });
+      }
       if (
         entity === "activity" &&
         query.summary === "1" &&
@@ -232,6 +239,32 @@ export default async function handler(req, res) {
           .single();
         if (error) throw error;
         return res.status(201).json({ enrollment: data });
+      }
+
+      if (entity === "course-publish") {
+        if (!["faculty", "admin"].includes(actor.role))
+          return res.status(403).json({ error: "Faculty access is required" });
+        const missing = requireFields(body, ["courseId", "target"]);
+        if (missing) return res.status(400).json({ error: missing });
+        const target = metadata(body.target);
+        if (!target.audience)
+          return res.status(400).json({ error: "Target audience is required" });
+        const payload = {
+          id: `pub-${randomUUID()}`,
+          course_id: cleanText(body.courseId),
+          target_audience: cleanText(target.audience),
+          department: target.department ? cleanText(target.department) : null,
+          academic_year: target.year ? cleanText(target.year) : null,
+          sections: Array.isArray(target.sections) ? target.sections : [],
+          created_at: now,
+        };
+        const { data, error } = await supabase
+          .from(table)
+          .insert(payload)
+          .select("*")
+          .single();
+        if (error) throw error;
+        return res.status(201).json({ cohort: data });
       }
 
       if (entity === "resource" || entity === "assessment") {

@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { publishCourseToCohort } from "../platform/api";
+import { loadPublishedCohorts, publishCourseToCohort } from "../platform/api";
 import { courses as defaultCourses } from "../platform/demo";
 import type { SessionUser } from "../platform/types";
 
@@ -57,7 +57,30 @@ export function FacultyEnrollmentManager({
   >([]);
 
   useEffect(() => {
-    // In a real app we might fetch existing published courses here
+    let active = true;
+    void loadPublishedCohorts(session.token)
+      .then((cohorts) => {
+        if (!active) return;
+        setPublishedEnrollments(
+          cohorts.map((c) => ({
+            id: c.id,
+            courseId: c.course_id,
+            target: {
+              audience: c.target_audience,
+              department: c.department,
+              year: c.academic_year,
+              sections: c.sections,
+            },
+            createdAt: new Date(c.created_at).toISOString().slice(0, 10),
+          }))
+        );
+      })
+      .catch(() => {
+        if (active) setNotice("Failed to load published courses.");
+      });
+    return () => {
+      active = false;
+    };
   }, [session.token]);
 
   const publish = async (event: React.FormEvent) => {
