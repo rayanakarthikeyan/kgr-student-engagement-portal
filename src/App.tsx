@@ -26,11 +26,12 @@ import { FacultyAnalytics } from "./components/FacultyAnalytics";
 import { FacultyResourceManager } from "./components/FacultyResourceManager";
 import { ResourceViewer } from "./components/ResourceViewer";
 import { StudentDashboard } from "./components/StudentDashboard";
+import { SettingsView } from "./components/SettingsView";
 import { courses } from "./platform/demo";
 import { enrollInCourse, loadCoursework, loadStudentOverview, logActivity, restoreSession, saveSession, validateSession } from "./platform/api";
 import type { ActivityLog, AssignmentRecord, AuthSession, Enrollment, LearningRecord, LearningResource } from "./platform/types";
 
-type ViewId = "dashboard" | "java-learn" | "java-lab" | "dbms-learn" | "dbms-lab" | "coursework" | "assessment" | "resources" | "telemetry";
+type ViewId = "dashboard" | "java-learn" | "java-lab" | "dbms-learn" | "dbms-lab" | "coursework" | "assessment" | "resources" | "telemetry" | "settings";
 type Theme = "light" | "dark";
 
 type NavItem = 
@@ -70,6 +71,7 @@ function pageTitle(view: ViewId) {
     assessment: ["Assessment center", "Secure, timed checkpoints with autosave and integrity monitoring."],
     resources: ["Theory resource manager", "Assign YouTube and Drive resources without consuming platform storage."],
     telemetry: ["Student insights", "Review study engagement, assessment integrity, and lab debugging behavior."],
+    settings: ["Account Settings", "Manage your profile information and preferences."],
   };
   return titles[view];
 }
@@ -189,6 +191,7 @@ export default function App() {
     if (view === "dbms-lab") return <CourseworkManager session={session} initialType="lab" courseFilter="DBMS" theme={theme} onEvent={emitActivity} />;
     if (view === "resources") return <FacultyResourceManager token={session.token} resources={learningResources} onChange={setLearningResources} />;
     if (view === "telemetry") return <FacultyAnalytics session={session} />;
+    if (view === "settings") return <SettingsView session={session} />;
     return <CourseworkManager session={session} initialType="assessment" theme={theme} onEvent={emitActivity} />;
   }, [dashboardAssignments, dashboardSubmissions, emitActivity, enrollments, isStudent, learningResources, session, theme, view]);
 
@@ -234,7 +237,7 @@ export default function App() {
 
         <div className="mt-8 border-t border-[var(--line)] pt-5">
           <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--muted)]">Account</p>
-          <button className="nav-item" type="button"><Settings size={18} /><span>Settings</span></button>
+          <button className={`nav-item ${view === "settings" ? "active" : ""}`} onClick={() => { setView("settings"); setMobileNavOpen(false); }} type="button"><Settings size={18} /><span>Settings</span></button>
         </div>
 
         <div className="mt-auto rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3">
