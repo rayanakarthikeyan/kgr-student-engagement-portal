@@ -72,12 +72,6 @@ export default async function handler(req, res) {
 
     if (req.method === "GET") {
       if (
-        entity === "course-publish" &&
-        !["faculty", "admin"].includes(actor.role)
-      ) {
-        return res.status(403).json({ error: "Faculty access is required" });
-      }
-      if (
         entity === "activity" &&
         query.summary === "1" &&
         actor.role !== "student" &&

@@ -35,6 +35,7 @@ import { courses } from "./platform/demo";
 import {
   enrollInCourse,
   loadCoursework,
+  loadPublishedCohorts,
   loadStudentOverview,
   logActivity,
   restoreSession,
@@ -174,6 +175,15 @@ export default function App() {
   const [dashboardSubmissions, setDashboardSubmissions] = useState<
     LearningRecord[]
   >([]);
+  const [publishedCohorts, setPublishedCohorts] = useState<
+    Array<{
+      course_id: string;
+      target_audience: "all" | "cohort";
+      department?: string;
+      academic_year?: string;
+      sections?: string[];
+    }>
+  >([]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -239,6 +249,13 @@ export default function App() {
           setDashboardSubmissions(data.submissions);
         })
         .catch(() => undefined);
+      
+      void loadPublishedCohorts(session.token)
+        .then((data) => {
+          if (!active) return;
+          setPublishedCohorts(data);
+        })
+        .catch(() => undefined);
     }
     return () => {
       active = false;
@@ -277,10 +294,30 @@ export default function App() {
     if (!session) return null;
     if (view === "admin-dashboard") return <SuperAdminDashboard token={session.token} />;
     if (view === "dashboard") {
+      const visibleCourses = isStudent
+        ? courses.filter((course) =>
+            publishedCohorts.some((c) => {
+              if (c.course_id !== course.id) return false;
+              if (c.target_audience === "all") return true;
+              if (c.department && c.department !== session.user.department)
+                return false;
+              if (c.academic_year && c.academic_year !== session.user.year)
+                return false;
+              if (
+                c.sections &&
+                c.sections.length > 0 &&
+                (!session.user.section || !c.sections.includes(session.user.section))
+              )
+                return false;
+              return true;
+            })
+          )
+        : courses;
+
       return isStudent ? (
         <StudentDashboard
           user={session.user}
-          courses={courses}
+          courses={visibleCourses}
           enrollments={enrollments}
           resources={learningResources}
           assignments={dashboardAssignments}
