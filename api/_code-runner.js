@@ -27,6 +27,38 @@ export default async function handler(req, res) {
     if (code.length > 100000 || stdin.length > 10000)
       return res.status(413).json({ error: "Runner input is too large" });
 
+    if (process.env.JDOODLE_CLIENT_ID && process.env.JDOODLE_CLIENT_SECRET) {
+      const response = await fetch("https://api.jdoodle.com/v1/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: process.env.JDOODLE_CLIENT_ID,
+          clientSecret: process.env.JDOODLE_CLIENT_SECRET,
+          script: code,
+          stdin: stdin || "",
+          language: language === "sql" ? "sql" : "java",
+          versionIndex: language === "sql" ? "3" : "4", // 4 is usually JDK 17
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => "No response body");
+        throw new Error(`JDoodle rejected the request. Details: ${errText}`);
+      }
+
+      const responseData = await response.json();
+      
+      // JDoodle returns { output: "...", statusCode: 200, memory: "...", cpuTime: "..." }
+      // statusCode 200 means successful execution (even if code threw an exception).
+      return res.status(200).json({
+        status: responseData.statusCode === 200 ? "passed" : "error",
+        stdout: responseData.output || "",
+        stderr: responseData.statusCode !== 200 ? responseData.error || responseData.output : "",
+        durationMs: parseFloat(responseData.cpuTime || "0") * 1000
+      });
+    }
+
     if (process.env.CODE_RUNNER_URL) {
       const isPiston = process.env.CODE_RUNNER_URL.includes("piston");
       
@@ -87,7 +119,7 @@ export default async function handler(req, res) {
       .status(503)
       .json({
         error:
-          "Code execution is not configured. Save your source or submit for faculty review. A college-managed isolated runner must be connected before Java or SQL can run here.",
+          "Code execution is not configured. Please add JDOODLE_CLIENT_ID and JDOODLE_CLIENT_SECRET, or set a CODE_RUNNER_URL in your Vercel environment variables.",
       });
   } catch (error) {
     return sendError(res, error, "Code runner failed");
