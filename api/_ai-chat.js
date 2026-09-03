@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { _auth, _createClient } from "./_shared.js";
+import { requireUser, createSupabaseClient } from "./_shared.js";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
@@ -9,7 +9,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const user = await _auth(req);
+    const supabase = createSupabaseClient();
+    const user = await requireUser(supabase, req);
     if (!user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -25,7 +26,7 @@ export default async function handler(req, res) {
     }
 
     // Save the user's message to the database
-    const supabase = _createClient();
+    // Save the user's message to the database
     await supabase.from("ai_chat_logs").insert({
       user_id: user.id,
       challenge_id: challengeId,

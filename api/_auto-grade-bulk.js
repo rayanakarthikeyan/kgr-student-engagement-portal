@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { _auth, _createClient } from "./_shared.js";
+import { requireUser, createSupabaseClient } from "./_shared.js";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
@@ -9,7 +9,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const user = await _auth(req);
+    const supabase = createSupabaseClient();
+    const user = await requireUser(supabase, req);
     if (!user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -17,8 +18,6 @@ export default async function handler(req, res) {
     if (!process.env.GEMINI_API_KEY) {
       return res.status(503).json({ error: "AI services are not configured. Please add GEMINI_API_KEY." });
     }
-
-    const supabase = _createClient();
 
     // 1. Fetch all ungraded submissions (status = 'submitted')
     const { data: pendingSubmissions, error: fetchError } = await supabase
