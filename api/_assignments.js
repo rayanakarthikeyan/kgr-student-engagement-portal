@@ -338,8 +338,8 @@ export default async function handler(req, res) {
 }
 
 function validateAssignment(payload) {
-  if (!payload.assigned_user_ids?.length)
-    return "Select at least one registered student";
+  // Empty assigned_user_ids means "all students" (current and future).
+  // No validation needed on the list itself.
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(payload.due_date || "") ||
     !Number.isFinite(Date.parse(payload.due_date))

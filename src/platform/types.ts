@@ -172,6 +172,7 @@ export interface CurriculumItem {
   suggestedMarks: number;
   source: string;
   starterCode: string;
+  expectedOutput?: string;
 }
 
 export interface AssignmentSubject {
