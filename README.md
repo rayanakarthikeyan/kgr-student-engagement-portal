@@ -68,6 +68,7 @@ Available API routes:
 ```bash
 GET    /api/health
 POST   /api/login
+POST   /api/bootstrap-admin
 GET    /api/summary
 GET    /api/users
 POST   /api/users
@@ -92,6 +93,8 @@ curl -X POST http://127.0.0.1:8787/api/users \
   -H "X-Admin-Password: admin123" \
   -d "{\"name\":\"Faculty Name\",\"email\":\"faculty@kgr.ac.in\",\"password\":\"change-me\",\"role\":\"faculty\",\"title\":\"Faculty\"}"
 ```
+
+Use `POST /api/bootstrap-admin` only once on an empty database to create the first Super Admin. It requires the server-only `BOOTSTRAP_ADMIN_TOKEN` value in the `X-Bootstrap-Token` header and returns `409` after an admin already exists.
 
 To test through Vercel CLI instead, run:
 
