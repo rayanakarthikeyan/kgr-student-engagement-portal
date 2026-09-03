@@ -1683,7 +1683,42 @@ tr:last-child td {
 .row-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.assignment-brief {
+  border: 1px solid #dbe4ed;
+  border-radius: 7px;
+  background: #f8fafc;
+  margin-top: 18px;
+  padding: 14px 16px;
+}
+
+.assignment-brief p {
+  margin: 6px 0 0;
+  color: #475569;
+  line-height: 1.55;
+}
+
+.assignment-brief details {
+  margin-top: 10px;
+}
+
+.assignment-brief summary {
+  color: #0369a1;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.assignment-brief pre {
+  overflow-x: auto;
+  border: 1px solid #dbe4ed;
+  border-radius: 6px;
+  background: #fff;
+  padding: 12px;
+  white-space: pre-wrap;
 }
 
 .reference-summary {
@@ -1718,6 +1753,22 @@ tr:last-child td {
   flex-wrap: wrap;
   gap: 8px;
   margin: 18px 0;
+}
+
+.submission-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.submission-filter-row > label {
+  display: grid;
+  min-width: 150px;
+  gap: 4px;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .submission-filters button,
@@ -1882,6 +1933,183 @@ tr:last-child td {
 
 .question-bank-layout {
   grid-template-columns: minmax(0, 1fr) 420px;
+}
+
+.side-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.question-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 165px;
+}
+
+.question-actions button {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #d6e0ea;
+  border-radius: 6px;
+  background: #fff;
+  padding: 0 8px;
+  color: #334155;
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.question-actions button:first-child {
+  border-color: #bae6fd;
+  color: #0369a1;
+}
+
+.question-actions button:last-child {
+  color: #be123c;
+}
+
+.assignment-editor-panel {
+  width: min(980px, 100%);
+  max-height: 92vh;
+}
+
+.assignment-editor-form {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.assignment-editor-form > label,
+.evaluation-panel > label {
+  display: grid;
+  gap: 6px;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.assignment-editor-form textarea {
+  min-height: 96px;
+}
+
+.student-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid #dbe4ed;
+  border-radius: 7px;
+  padding: 10px;
+}
+
+.student-picker > p {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.student-picker label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-bottom: 1px solid #edf2f7;
+  padding: 8px;
+  font-size: 0.76rem;
+}
+
+.student-picker label input {
+  width: 16px;
+  min-height: 16px;
+  margin-top: 2px;
+}
+
+.student-picker label span {
+  display: grid;
+  gap: 2px;
+}
+
+.test-preview {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #dbe4ed;
+  border-radius: 7px;
+  background: #f8fafc;
+  margin-top: 10px;
+  padding: 12px;
+}
+
+.test-preview code {
+  white-space: pre-wrap;
+}
+
+.test-preview span {
+  color: #475569;
+  font-size: 0.76rem;
+}
+
+.evaluation-panel {
+  width: min(720px, 100%);
+  padding: 0 20px 20px;
+}
+
+.evaluation-panel .modal-header {
+  margin: 0 -20px 16px;
+}
+
+.evaluation-panel > p {
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.rubric-list {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.rubric-list label {
+  display: grid;
+  gap: 7px;
+}
+
+.rubric-list label > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.rubric-list input[type="range"] {
+  width: 100%;
+  accent-color: #0284c7;
+}
+
+.final-award {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #a7f3d0;
+  border-radius: 7px;
+  background: #ecfdf5;
+  margin-bottom: 16px;
+  padding: 13px 15px;
+}
+
+.final-award strong {
+  color: #047857;
+  font-size: 1.15rem;
+}
+
+.evaluation-panel textarea {
+  min-height: 130px;
+  margin-bottom: 14px;
 }
 
 .question-authoring-panel {
@@ -2582,7 +2810,8 @@ tr:last-child td {
   }
 
   .report-filters,
-  .test-case-header {
+  .test-case-header,
+  .submission-filter-row {
     align-items: stretch;
     flex-direction: column;
   }
@@ -2598,6 +2827,14 @@ tr:last-child td {
 
   .test-case-row {
     grid-template-columns: 1fr;
+  }
+
+  .student-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .assignment-editor-form {
+    padding: 16px;
   }
 
   .toolbar-actions .button,

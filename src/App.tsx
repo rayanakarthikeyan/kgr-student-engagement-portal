@@ -64,6 +64,11 @@ interface ApiAssignment {
   title: string;
   subject_id: string;
   due_date: string;
+  max_marks?: number;
+  description?: string;
+  starter_code?: string;
+  test_cases?: Array<{ input: string; output: string; hidden: boolean }>;
+  assigned_user_ids?: string[];
   assigned: number;
   submitted: number;
   pending: number;
@@ -1154,7 +1159,7 @@ export function App() {
     }
   };
 
-  const createAssignment = async (body: Record<string, string | number>) => {
+  const createAssignment = async (body: Record<string, unknown>) => {
     try {
       await apiRequest<{ assignment: ApiAssignment }>("/api/assignments", {
         method: "POST",
@@ -1169,7 +1174,7 @@ export function App() {
     }
   };
 
-  const updateAssignment = async (body: Record<string, string | number>) => {
+  const updateAssignment = async (body: Record<string, unknown>) => {
     try {
       await apiRequest<{ assignment: ApiAssignment }>("/api/assignments", {
         method: "PATCH",
@@ -1215,11 +1220,46 @@ export function App() {
             ? "Question added"
             : body.action === "scan"
               ? "Similarity scan completed"
-              : "Auto-grade completed; faculty review is recommended";
+              : body.action === "review"
+                ? "Faculty evaluation saved"
+                : body.action === "submit_started"
+                  ? "Started drafts moved to submitted"
+                  : "Auto-grade completed; faculty review is recommended";
       setStatusMessage(message);
       await loadPortalData();
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to complete learning action");
+      throw error;
+    }
+  };
+
+  const updateLearning = async (body: Record<string, unknown>) => {
+    try {
+      await apiRequest<{ record: LearningRecord }>("/api/learning", {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+      setStatusMessage("Question updated");
+      await loadPortalData();
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to update question");
+      throw error;
+    }
+  };
+
+  const deleteLearning = async (id: string) => {
+    if (!window.confirm("Delete this question from the question bank?")) return;
+    try {
+      await apiRequest<{ record: LearningRecord }>("/api/learning", {
+        method: "DELETE",
+        headers: authHeaders(),
+        body: JSON.stringify({ id }),
+      });
+      setStatusMessage("Question deleted");
+      await loadPortalData();
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to delete question");
       throw error;
     }
   };
@@ -1406,7 +1446,7 @@ export function App() {
           )}
           {view === "resources" && role === "faculty" && <Resources role={role} users={filteredData.users} />}
           {view === "activities" && role !== "admin" && <Activities role={role} assignments={filteredData.assignments} subjects={filteredData.subjects} onCreateAssignment={createAssignment} />}
-          {view === "questionBank" && role === "faculty" && <QuestionBank assignments={filteredData.assignments} records={filteredData.learning} onCreate={learningAction} />}
+          {view === "questionBank" && role === "faculty" && <QuestionBank assignments={filteredData.assignments} records={filteredData.learning} onCreate={learningAction} onUpdate={updateLearning} onDelete={deleteLearning} />}
           {view === "marksExport" && role === "faculty" && <MarksExport assignments={filteredData.assignments} records={filteredData.learning} people={filteredData.people} />}
           {view === "aiExport" && role === "faculty" && <AiChatExport assignments={filteredData.assignments} records={filteredData.learning} people={filteredData.people} />}
           {view === "roster" && role === "faculty" && <StudentRoster people={filteredData.people} learning={filteredData.learning} engagement={filteredData.records} />}

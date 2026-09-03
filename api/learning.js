@@ -85,7 +85,7 @@ async function refreshAssignmentCounts(supabase, assignmentId) {
   if (submissionError) throw submissionError;
   const assignment = assignments?.[0];
   if (!assignment) return;
-  const submitted = submissions?.length || 0;
+  const submitted = (submissions || []).filter((record) => record.status !== "draft").length;
   const reviewed = (submissions || []).filter((record) => ["graded", "reviewed"].includes(record.status)).length;
   const { error } = await supabase.from("assignments").update({
     submitted,
@@ -139,8 +139,33 @@ export default async function handler(req, res) {
 
     if (req.method === "POST" && action) {
       if (actor.role !== "faculty" && actor.role !== "admin") return res.status(403).json({ error: "Faculty access is required" });
+      if (action === "submit_started") {
+        const assignmentId = cleanText(body.assignmentId || body.assignment_id);
+        if (!assignmentId) return res.status(400).json({ error: "Assignment id is required" });
+        const { data, error } = await supabase.from("learning_records").update({ status: "submitted", updated_at: new Date().toISOString() }).eq("kind", "submission").eq("assignment_id", assignmentId).eq("status", "draft").select("*");
+        if (error) throw error;
+        await refreshAssignmentCounts(supabase, assignmentId);
+        return res.status(200).json({ records: data || [], count: data?.length || 0 });
+      }
       const record = await findRecord(supabase, cleanText(body.id));
       if (!record || record.kind !== "submission") return res.status(404).json({ error: "Submission not found" });
+
+      if (action === "review") {
+        const rubric = metadata(body.rubric);
+        const score = Number(body.score);
+        if (!Number.isFinite(score) || score < 0) return res.status(400).json({ error: "A valid score is required" });
+        const nextMetadata = {
+          ...metadata(record.metadata),
+          rubric_scores: rubric,
+          faculty_feedback: cleanText(body.feedback),
+          reviewed_by: actor.id,
+          reviewed_at: new Date().toISOString(),
+        };
+        const { data, error: updateError } = await supabase.from("learning_records").update({ score, status: "graded", metadata: nextMetadata, updated_at: new Date().toISOString() }).eq("id", record.id).select("*").single();
+        if (updateError) throw updateError;
+        await refreshAssignmentCounts(supabase, record.assignment_id);
+        return res.status(200).json({ record: data });
+      }
 
       if (action === "scan") {
         const { data: submissions, error } = await supabase.from("learning_records").select("*").eq("kind", "submission");
@@ -246,6 +271,8 @@ export default async function handler(req, res) {
       const payload = {
         title: body.title === undefined ? existing.title : cleanText(body.title),
         body: body.body === undefined ? existing.body : cleanText(body.body),
+        assignment_id: body.assignmentId === undefined && body.assignment_id === undefined ? existing.assignment_id : cleanText(body.assignmentId || body.assignment_id) || null,
+        subject_id: body.subjectId === undefined && body.subject_id === undefined ? existing.subject_id : cleanText(body.subjectId || body.subject_id) || null,
         status: body.status === undefined ? existing.status : cleanText(body.status),
         score: body.score === undefined ? existing.score : Number(body.score),
         metadata: { ...metadata(existing.metadata), ...metadata(body.metadata) },

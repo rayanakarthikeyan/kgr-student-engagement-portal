@@ -51,6 +51,11 @@ CREATE TABLE IF NOT EXISTS public.assignments (
   title TEXT NOT NULL,
   subject_id TEXT NOT NULL REFERENCES public.subjects(id),
   due_date DATE NOT NULL,
+  max_marks NUMERIC NOT NULL DEFAULT 10,
+  description TEXT NOT NULL DEFAULT '',
+  starter_code TEXT NOT NULL DEFAULT '',
+  test_cases JSONB NOT NULL DEFAULT '[]'::jsonb,
+  assigned_user_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
   assigned INTEGER DEFAULT 0,
   submitted INTEGER DEFAULT 0,
   pending INTEGER DEFAULT 0,
@@ -59,6 +64,11 @@ CREATE TABLE IF NOT EXISTS public.assignments (
 );
 
 ALTER TABLE public.assignments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE public.assignments ADD COLUMN IF NOT EXISTS max_marks NUMERIC NOT NULL DEFAULT 10;
+ALTER TABLE public.assignments ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.assignments ADD COLUMN IF NOT EXISTS starter_code TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.assignments ADD COLUMN IF NOT EXISTS test_cases JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE public.assignments ADD COLUMN IF NOT EXISTS assigned_user_ids JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS assignments_subject_idx ON public.assignments (subject_id);
 CREATE INDEX IF NOT EXISTS assignments_due_date_idx ON public.assignments (due_date);

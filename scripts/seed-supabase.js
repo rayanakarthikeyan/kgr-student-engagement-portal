@@ -75,6 +75,11 @@ async function seed() {
       title: assignment.title,
       subject_id: assignment.subjectId, // map subjectId -> subject_id
       due_date: assignment.dueDate,     // map dueDate -> due_date
+      max_marks: assignment.max_marks ?? 10,
+      description: assignment.description ?? "",
+      starter_code: assignment.starter_code ?? "",
+      test_cases: assignment.test_cases ?? [],
+      assigned_user_ids: assignment.assigned_user_ids ?? [],
       assigned: assignment.assigned,
       submitted: assignment.submitted,
       pending: assignment.pending,

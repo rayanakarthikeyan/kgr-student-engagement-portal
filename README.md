@@ -12,7 +12,9 @@ Vite + React + TypeScript portal for faculty assignments, quizzes, student monit
 - private or faculty-shared learning journals
 - weekly faculty summaries for activity, follow-up, help requests, and coaching
 - reusable question bank with reference rubrics and keywords
-- student submissions with similarity scanning and faculty-reviewed auto-grading
+- full assignment authoring with deadlines, marks, instructions, starter content, visible or hidden tests, and student targeting
+- assignment and question-bank edit/delete controls
+- student drafts, submission promotion, similarity scanning, auto-grading, and four-part faculty evaluation
 - CSV exports for marks and AI support conversations
 - assignment-aware student support with a private, built-in DBMS tutor that requires no external API
 - question-bank categories, starter code, rubric keywords, and hidden or visible test cases
@@ -123,7 +125,7 @@ Use `POST /api/bootstrap-admin` only once on an empty database to create the fir
 
 The engagement API stores check-ins, private help requests, feedback, reminders, announcements, pulse checks, journals, recognition, and active-time sessions in `engagement_records`. Existing Supabase projects must run `supabase/migrations/20260823_engagement_records.sql` once before deploying this release.
 
-The learning API stores question-bank rubrics, student submissions, similarity and auto-grade results, and assignment-support conversations in `learning_records`. Existing projects must run `supabase/migrations/20260823_learning_records.sql` and `supabase/migrations/20260823_student_roster_fields.sql`. The assignment assistant is implemented entirely inside the portal and never requires or calls an external AI API.
+The learning API stores question-bank rubrics, student submissions, similarity and auto-grade results, and assignment-support conversations in `learning_records`. Existing projects must run `supabase/migrations/20260823_learning_records.sql`, `supabase/migrations/20260823_student_roster_fields.sql`, and `supabase/migrations/20260823_assignment_details.sql`. The assignment assistant is implemented entirely inside the portal and never requires or calls an external AI API.
 
 To test through Vercel CLI instead, run:
 

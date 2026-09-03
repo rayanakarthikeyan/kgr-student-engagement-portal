@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Bot, ChevronDown, Download, Eye, FileQuestion, MessageSquareText, Plus, Printer, Search, Send, ShieldCheck, Sparkles, Trash2, Users } from "lucide-react";
+import { Bot, ChevronDown, Download, Eye, FileQuestion, MessageSquareText, Pencil, Plus, Printer, Search, Send, ShieldCheck, Sparkles, Trash2, Users } from "lucide-react";
 import type { RoleId } from "./data";
 
 export interface LearningRecord {
@@ -80,11 +80,12 @@ function duration(seconds: number) {
   return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-export function QuestionBank({ assignments, records, onCreate }: { assignments: LearningAssignment[]; records: LearningRecord[]; onCreate: CreateLearning }) {
+export function QuestionBank({ assignments, records, onCreate, onUpdate, onDelete }: { assignments: LearningAssignment[]; records: LearningRecord[]; onCreate: CreateLearning; onUpdate: CreateLearning; onDelete: (id: string) => Promise<void> }) {
   const questions = records.filter((record) => record.kind === "question");
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [tests, setTests] = useState<TestCaseDraft[]>([{ input: "", output: "", hidden: false }]);
+  const [editingId, setEditingId] = useState("");
   const [draft, setDraft] = useState({ assignmentId: assignments[0]?.id ?? "", category: "SQL Practice", title: "", prompt: "", marks: "10", difficulty: "Medium", keywords: "", answer: "", starterCode: "" });
   const categories = [...new Set(questions.map((question) => metaText(question, "category") || "General"))].toSorted();
   const filtered = questions.filter((question) => {
@@ -96,10 +97,11 @@ export function QuestionBank({ assignments, records, onCreate }: { assignments: 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const assignment = assignments.find((item) => item.id === draft.assignmentId);
-    await onCreate({
-      kind: "question",
+    const payload = {
       assignmentId: draft.assignmentId,
+      assignment_id: draft.assignmentId,
       subjectId: assignment?.subject_id,
+      subject_id: assignment?.subject_id,
       title: draft.title,
       body: draft.prompt,
       score: Number(draft.marks),
@@ -112,9 +114,29 @@ export function QuestionBank({ assignments, records, onCreate }: { assignments: 
         starter_code: draft.starterCode,
         test_cases: tests.filter((test) => test.input || test.output),
       },
-    });
+    };
+    if (editingId) await onUpdate({ id: editingId, ...payload });
+    else await onCreate({ kind: "question", ...payload });
+    setEditingId("");
     setDraft((current) => ({ ...current, title: "", prompt: "", keywords: "", answer: "", starterCode: "" }));
     setTests([{ input: "", output: "", hidden: false }]);
+  };
+
+  const loadQuestion = (question: LearningRecord, edit: boolean) => {
+    setEditingId(edit ? question.id : "");
+    setDraft({
+      assignmentId: question.assignment_id ?? assignments[0]?.id ?? "",
+      category: metaText(question, "category") || "General",
+      title: question.title,
+      prompt: question.body,
+      marks: String(question.score ?? 10),
+      difficulty: metaText(question, "difficulty") || "Medium",
+      keywords: Array.isArray(question.metadata.keywords) ? question.metadata.keywords.join(", ") : "",
+      answer: metaText(question, "reference_answer"),
+      starterCode: metaText(question, "starter_code"),
+    });
+    const savedTests = Array.isArray(question.metadata.test_cases) ? question.metadata.test_cases as TestCaseDraft[] : [];
+    setTests(savedTests.length ? savedTests : [{ input: "", output: "", hidden: false }]);
   };
 
   return (
@@ -122,13 +144,13 @@ export function QuestionBank({ assignments, records, onCreate }: { assignments: 
       <article className="panel tool-main">
         <div className="tool-heading"><div><FileQuestion size={22} /><p className="eyebrow">Faculty authoring</p><h2>Question Bank</h2><p>Build reusable prompts, rubrics, starter code, and test cases.</p></div><span className="count-badge">{questions.length} questions</span></div>
         <div className="report-filters question-filters"><label className="inline-search"><Search size={16}/><input type="search" placeholder="Search questions..." value={query} onChange={(event)=>setQuery(event.target.value)}/></label><label>Category<select value={categoryFilter} onChange={(event)=>setCategoryFilter(event.target.value)}><option value="all">All categories</option>{categories.map((category)=><option key={category}>{category}</option>)}</select></label></div>
-        <div className="dense-table-wrap"><table className="dense-table"><thead><tr><th>Question</th><th>Category</th><th>Assignment</th><th>Difficulty</th><th>Marks</th><th>Tests</th></tr></thead><tbody>
-          {filtered.map((question) => { const testCases = Array.isArray(question.metadata.test_cases) ? question.metadata.test_cases : []; return <tr key={question.id}><td><strong>{question.title}</strong><span>{question.body}</span></td><td>{metaText(question,"category")||"General"}</td><td>{assignmentName(question.assignment_id, assignments)}</td><td><span className="status-pill">{metaText(question, "difficulty") || "Medium"}</span></td><td>{question.score ?? 0}</td><td>{testCases.length}</td></tr>; })}
-          {filtered.length === 0 && <tr><td colSpan={6}>No questions match the current filters.</td></tr>}
+        <div className="dense-table-wrap"><table className="dense-table"><thead><tr><th>Question</th><th>Category</th><th>Assignment</th><th>Difficulty</th><th>Marks</th><th>Tests</th><th>Actions</th></tr></thead><tbody>
+          {filtered.map((question) => { const savedTests = Array.isArray(question.metadata.test_cases) ? question.metadata.test_cases : []; return <tr key={question.id}><td><strong>{question.title}</strong><span>{question.body}</span></td><td>{metaText(question,"category")||"General"}</td><td>{assignmentName(question.assignment_id, assignments)}</td><td><span className="status-pill">{metaText(question, "difficulty") || "Medium"}</span></td><td>{question.score ?? 0}</td><td>{savedTests.length}</td><td><div className="question-actions"><button type="button" onClick={()=>loadQuestion(question,false)}>Use for Assignment</button><button type="button" title="Edit question" onClick={()=>loadQuestion(question,true)}><Pencil size={14}/><span>Edit</span></button><button type="button" title="Delete question" onClick={()=>void onDelete(question.id)}><Trash2 size={14}/><span>Delete</span></button></div></td></tr>; })}
+          {filtered.length === 0 && <tr><td colSpan={7}>No questions match the current filters.</td></tr>}
         </tbody></table></div>
       </article>
       <aside className="panel tool-side question-authoring-panel">
-        <h2>Add Question</h2>
+        <div className="side-heading"><h2>{editingId?"Edit Question":"Add Question"}</h2>{editingId&&<button className="button secondary compact" type="button" onClick={()=>setEditingId("")}>Cancel</button>}</div>
         <form className="form-grid single-column" onSubmit={submit}>
           <label>Assignment<select required value={draft.assignmentId} onChange={(event) => setDraft((value) => ({ ...value, assignmentId: event.target.value }))}>{assignments.map((assignment) => <option value={assignment.id} key={assignment.id}>{assignment.title}</option>)}</select></label>
           <label>Category<input required value={draft.category} onChange={(event)=>setDraft((value)=>({...value,category:event.target.value}))} placeholder="Normalization"/></label>
@@ -140,7 +162,7 @@ export function QuestionBank({ assignments, records, onCreate }: { assignments: 
           <label>Starter code or SQL<textarea className="code-input" value={draft.starterCode} onChange={(event)=>setDraft((value)=>({...value,starterCode:event.target.value}))} placeholder="SELECT ..."/></label>
           <div className="test-case-header"><strong>Output test cases</strong><button type="button" className="button secondary compact" onClick={()=>setTests((current)=>[...current,{input:"",output:"",hidden:false}])}><Plus size={14}/>Add test</button></div>
           <div className="test-case-list">{tests.map((test,index)=><div className="test-case-row" key={index}><span>Test {index+1}</span><input placeholder="Input" value={test.input} onChange={(event)=>setTests((current)=>current.map((item,itemIndex)=>itemIndex===index?{...item,input:event.target.value}:item))}/><input placeholder="Expected output" value={test.output} onChange={(event)=>setTests((current)=>current.map((item,itemIndex)=>itemIndex===index?{...item,output:event.target.value}:item))}/><label className="check-label"><input type="checkbox" checked={test.hidden} onChange={(event)=>setTests((current)=>current.map((item,itemIndex)=>itemIndex===index?{...item,hidden:event.target.checked}:item))}/>Hidden</label><button className="icon-button" type="button" title="Remove test" disabled={tests.length===1} onClick={()=>setTests((current)=>current.filter((_,itemIndex)=>itemIndex!==index))}><Trash2 size={14}/></button></div>)}</div>
-          <button className="button" type="submit" disabled={assignments.length===0}>Add to bank</button>
+          <button className="button" type="submit" disabled={assignments.length===0}>{editingId?"Save question changes":"Add to bank"}</button>
         </form>
       </aside>
     </section>

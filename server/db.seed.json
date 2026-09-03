@@ -50,6 +50,14 @@
       "subject_id": "sub-dbms-cse-a",
       "dueDate": "2026-09-01",
       "due_date": "2026-09-01",
+      "max_marks": 10,
+      "description": "Convert the supplied ER model into a relational schema. Identify primary keys, foreign keys, cardinalities, and the relation created for each many-to-many relationship.",
+      "starter_code": "Entities:\nRelationships:\nRelational schema:\nConstraints:",
+      "test_cases": [
+        { "input": "Student - enrolls - Course", "output": "STUDENT, COURSE, and ENROLLMENT relations with keys", "hidden": false },
+        { "input": "Department 1:N Employee", "output": "Department key appears as a foreign key in Employee", "hidden": true }
+      ],
+      "assigned_user_ids": [],
       "assigned": 1,
       "submitted": 1,
       "pending": 0,
@@ -62,6 +70,14 @@
       "subject_id": "sub-dbms-cse-a",
       "dueDate": "2026-09-05",
       "due_date": "2026-09-05",
+      "max_marks": 10,
+      "description": "Write and explain SQL queries using joins, grouping, aggregate functions, WHERE, and HAVING. Include the expected result columns for each query.",
+      "starter_code": "SELECT\nFROM\nJOIN\nWHERE\nGROUP BY\nHAVING;",
+      "test_cases": [
+        { "input": "Average salary by department", "output": "One row per department with its average salary", "hidden": false },
+        { "input": "Departments with average salary above 60000", "output": "Aggregate filter is applied with HAVING", "hidden": true }
+      ],
+      "assigned_user_ids": [],
       "assigned": 1,
       "submitted": 1,
       "pending": 0,
@@ -74,6 +90,13 @@
       "subject_id": "sub-dbms-cse-a",
       "dueDate": "2026-09-08",
       "due_date": "2026-09-08",
+      "max_marks": 10,
+      "description": "Find candidate keys, identify normal-form violations, and decompose the supplied relation to BCNF while preserving a lossless join.",
+      "starter_code": "Functional dependencies:\nCandidate keys:\nViolations:\nDecomposition:",
+      "test_cases": [
+        { "input": "R(A,B,C), A->B, B->C", "output": "Identify the BCNF violation and show the decomposition", "hidden": false }
+      ],
+      "assigned_user_ids": [],
       "assigned": 1,
       "submitted": 0,
       "pending": 1,
@@ -86,6 +109,14 @@
       "subject_id": "sub-dbms-cse-a",
       "dueDate": "2026-09-12",
       "due_date": "2026-09-12",
+      "max_marks": 10,
+      "description": "Analyze transaction schedules for conflicts, construct the precedence graph, and determine conflict serializability and possible deadlocks.",
+      "starter_code": "Schedule:\nConflicting pairs:\nPrecedence graph edges:\nConclusion:",
+      "test_cases": [
+        { "input": "r1(X), w1(X), r2(X), w2(X)", "output": "Show the graph edge and serial order", "hidden": false },
+        { "input": "T1 waits for T2 and T2 waits for T1", "output": "Detect the wait-for graph cycle", "hidden": true }
+      ],
+      "assigned_user_ids": [],
       "assigned": 1,
       "submitted": 0,
       "pending": 1,

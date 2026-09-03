@@ -23,6 +23,16 @@ function toInteger(value, fallback = 0) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
+function toNumber(value, fallback = 0) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function toArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 function normalizeAssignmentPayload(body, { partial = false } = {}) {
   const payload = {};
   if (!partial || body.title !== undefined) payload.title = cleanText(body.title);
@@ -32,13 +42,26 @@ function normalizeAssignmentPayload(body, { partial = false } = {}) {
   if (!partial || body.dueDate !== undefined || body.due_date !== undefined) {
     payload.due_date = cleanText(body.dueDate || body.due_date);
   }
+  if (!partial || body.maxMarks !== undefined || body.max_marks !== undefined) {
+    payload.max_marks = toNumber(body.maxMarks ?? body.max_marks, 10);
+  }
+  if (!partial || body.description !== undefined) payload.description = cleanText(body.description);
+  if (!partial || body.starterCode !== undefined || body.starter_code !== undefined) {
+    payload.starter_code = cleanText(body.starterCode ?? body.starter_code);
+  }
+  if (!partial || body.testCases !== undefined || body.test_cases !== undefined) {
+    payload.test_cases = toArray(body.testCases ?? body.test_cases);
+  }
+  if (!partial || body.assignedUserIds !== undefined || body.assigned_user_ids !== undefined) {
+    payload.assigned_user_ids = toArray(body.assignedUserIds ?? body.assigned_user_ids).map(cleanText).filter(Boolean);
+  }
   if (body.assigned !== undefined) payload.assigned = toInteger(body.assigned);
   if (body.submitted !== undefined) payload.submitted = toInteger(body.submitted);
   if (body.pending !== undefined) payload.pending = toInteger(body.pending);
   if (body.reviewed !== undefined) payload.reviewed = toInteger(body.reviewed);
 
   Object.keys(payload).forEach((key) => {
-    if (payload[key] === "") delete payload[key];
+    if (payload[key] === "" && !["description", "starter_code"].includes(key)) delete payload[key];
   });
 
   return payload;
@@ -65,7 +88,13 @@ export default async function handler(req, res) {
 
       const { data, error } = await request;
       if (error) throw error;
-      return res.status(200).json({ assignments: data || [] });
+      const assignments = actor.role === "student"
+        ? (data || []).filter((assignment) => {
+          const assignedUserIds = Array.isArray(assignment.assigned_user_ids) ? assignment.assigned_user_ids : [];
+          return assignedUserIds.length === 0 || assignedUserIds.includes(actor.id);
+        })
+        : data || [];
+      return res.status(200).json({ assignments });
     }
 
     if (!["POST", "PATCH", "DELETE"].includes(req.method)) {
