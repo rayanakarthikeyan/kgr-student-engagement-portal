@@ -28,6 +28,7 @@ function getLocalDb() {
     localDb.subjects ||= [];
     localDb.assignments ||= [];
     localDb.engagement_records ||= [];
+    localDb.learning_records ||= [];
   }
   return localDb;
 }

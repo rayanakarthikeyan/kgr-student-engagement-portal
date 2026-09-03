@@ -34,6 +34,7 @@ async function seed() {
   console.log("Clearing learning demo data...");
   const clearSteps = [
     ["engagement_records", "id"],
+    ["learning_records", "id"],
     ["assignments", "id"],
     ["subjects", "id"],
     ["users", "id"],
@@ -86,6 +87,12 @@ async function seed() {
   for (const record of seedData.engagement_records || []) {
     const { error } = await supabase.from("engagement_records").upsert(record);
     if (error) throw new Error(`Error inserting engagement record: ${error.message}`);
+  }
+
+  console.log("Seeding Learning Records...");
+  for (const record of seedData.learning_records || []) {
+    const { error } = await supabase.from("learning_records").upsert(record);
+    if (error) throw new Error(`Error inserting learning record: ${error.message}`);
   }
 
   console.log("Seed completed. Super Admin, faculty demo, and student demo accounts are present.");

@@ -11,6 +11,10 @@ Vite + React + TypeScript portal for faculty assignments, quizzes, student monit
 - pulse checks with student responses
 - private or faculty-shared learning journals
 - weekly faculty summaries for activity, follow-up, help requests, and coaching
+- reusable question bank with reference rubrics and keywords
+- student submissions with similarity scanning and faculty-reviewed auto-grading
+- CSV exports for marks and AI support conversations
+- assignment-aware AI student support with a built-in DBMS tutor fallback
 
 ## Local Frontend
 
@@ -92,6 +96,10 @@ GET    /api/assignments
 POST   /api/assignments
 PATCH  /api/assignments
 DELETE /api/assignments?id=<assignment-id>
+GET    /api/learning
+POST   /api/learning
+PATCH  /api/learning
+DELETE /api/learning?id=<learning-record-id>
 GET    /api/engagement
 POST   /api/engagement
 PATCH  /api/engagement
@@ -111,6 +119,8 @@ curl -X POST http://127.0.0.1:8787/api/users \
 Use `POST /api/bootstrap-admin` only once on an empty database to create the first Super Admin. It requires the server-only `BOOTSTRAP_ADMIN_TOKEN` value in the `X-Bootstrap-Token` header and returns `409` after an admin already exists.
 
 The engagement API stores check-ins, private help requests, feedback, reminders, announcements, pulse checks, journals, recognition, and active-time sessions in `engagement_records`. Existing Supabase projects must run `supabase/migrations/20260823_engagement_records.sql` once before deploying this release.
+
+The learning API stores question-bank rubrics, student submissions, similarity and auto-grade results, and assignment-support conversations in `learning_records`. Existing projects must also run `supabase/migrations/20260823_learning_records.sql`. Set the server-only `OPENAI_API_KEY` and optional `OPENAI_MODEL` variables to enable hosted AI responses; without them, the portal uses its built-in assignment-aware DBMS tutor.
 
 To test through Vercel CLI instead, run:
 

@@ -1,23 +1,29 @@
 import {
   Activity,
+  Bot,
   CircleAlert,
   BarChart3,
   BookOpen,
   ClipboardList,
   FileText,
+  FileQuestion,
   GraduationCap,
   HeartHandshake,
   LayoutDashboard,
   LogOut,
   KeyRound,
   Mail,
+  MessageSquareText,
   Search,
   Settings,
   UserCheck,
+  UsersRound,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EngagementHub, TimeMonitor, type EngagementRecord, type PortalPerson } from "./EngagementHub";
+import { AiAssignmentSupport, AiChatExport, MarksExport, QuestionBank, StudentRoster, type LearningRecord } from "./LearningTools";
+import { AssignmentWorkspace } from "./AssignmentWorkspace";
 import {
   roleConfig,
   roleProfiles,
@@ -74,6 +80,8 @@ interface PortalData {
   assignments: ApiAssignment[];
   records: EngagementRecord[];
   people: PortalPerson[];
+  learning: LearningRecord[];
+  aiConfigured: boolean;
 }
 
 const navigationByRole: Record<RoleId, { id: ViewId; label: string; icon: React.ElementType }[]> = {
@@ -82,16 +90,18 @@ const navigationByRole: Record<RoleId, { id: ViewId; label: string; icon: React.
     { id: "settings", label: "Manage Users", icon: Settings },
   ],
   faculty: [
-    { id: "overview", label: "Dashboard", icon: LayoutDashboard },
+    { id: "overview", label: "Assignments & Submissions", icon: ClipboardList },
+    { id: "questionBank", label: "Question Bank", icon: FileQuestion },
+    { id: "marksExport", label: "Marks Export", icon: FileText },
+    { id: "aiExport", label: "AI Chat Export", icon: MessageSquareText },
+    { id: "roster", label: "Student Roster", icon: UsersRound },
     { id: "workspace", label: "Student Groups", icon: BookOpen },
-    { id: "resources", label: "Students", icon: GraduationCap },
-    { id: "activities", label: "Assignments & Quizzes", icon: ClipboardList },
     { id: "engagement", label: "Engagement", icon: HeartHandshake },
     { id: "analytics", label: "Time Monitor", icon: BarChart3 },
   ],
   student: [
-    { id: "overview", label: "Dashboard", icon: LayoutDashboard },
-    { id: "activities", label: "My Assignments & Quizzes", icon: ClipboardList },
+    { id: "overview", label: "My Assignments", icon: ClipboardList },
+    { id: "aiSupport", label: "AI Assignment Support", icon: Bot },
     { id: "engagement", label: "Connect", icon: HeartHandshake },
     { id: "analytics", label: "My Learning Time", icon: BarChart3 },
   ],
@@ -99,6 +109,7 @@ const navigationByRole: Record<RoleId, { id: ViewId; label: string; icon: React.
 
 
 interface AssignmentCardData {
+  id: string;
   title: string;
   subject: string;
   due: string;
@@ -129,6 +140,7 @@ function toAssignmentCard(assignment: ApiAssignment, subjectName = "Unassigned")
   const progress = assigned > 0 ? Math.round((submitted / assigned) * 100) : 0;
 
   return {
+    id: assignment.id,
     title: assignment.title,
     subject: assignment.subjects?.name ?? subjectName,
     due: assignment.due_date,
@@ -983,7 +995,7 @@ export function App() {
   const [query, setQuery] = useState("");
   const [selectedSubjectIndex, setSelectedSubjectIndex] = useState(0);
   const [modalSubject, setModalSubject] = useState<Subject | null>(null);
-  const [portalData, setPortalData] = useState<PortalData>({ users: [], subjects: [], assignments: [], records: [], people: [] });
+  const [portalData, setPortalData] = useState<PortalData>({ users: [], subjects: [], assignments: [], records: [], people: [], learning: [], aiConfigured: false });
   const [statusMessage, setStatusMessage] = useState("");
   const lastActivityRef = useRef(Date.now());
 
@@ -997,6 +1009,8 @@ export function App() {
       assignments: portalData.assignments.filter((assignment) => `${assignment.title} ${assignment.subjects?.name ?? ""}`.toLowerCase().includes(search)),
       records: portalData.records.filter((record) => `${record.title} ${record.body} ${record.kind}`.toLowerCase().includes(search)),
       people: portalData.people,
+      learning: portalData.learning.filter((record) => `${record.title} ${record.body} ${record.kind}`.toLowerCase().includes(search)),
+      aiConfigured: portalData.aiConfigured,
     };
   }, [portalData, query]);
 
@@ -1026,12 +1040,16 @@ export function App() {
     const engagementPromise = role === "admin"
       ? Promise.resolve({ records: [] as EngagementRecord[], people: [] as PortalPerson[] })
       : apiRequest<{ records: EngagementRecord[]; people: PortalPerson[] }>("/api/engagement", { headers });
+    const learningPromise = role === "admin"
+      ? Promise.resolve({ records: [] as LearningRecord[], people: [] as PortalPerson[], aiConfigured: false })
+      : apiRequest<{ records: LearningRecord[]; people: PortalPerson[]; aiConfigured: boolean }>("/api/learning", { headers });
 
-    const [usersResponse, subjectsResponse, assignmentsResponse, engagementResponse] = await Promise.all([
+    const [usersResponse, subjectsResponse, assignmentsResponse, engagementResponse, learningResponse] = await Promise.all([
       usersPromise,
       subjectsPromise,
       assignmentsPromise,
       engagementPromise,
+      learningPromise,
     ]);
 
     setPortalData({
@@ -1039,7 +1057,9 @@ export function App() {
       subjects: subjectsResponse.subjects,
       assignments: assignmentsResponse.assignments,
       records: engagementResponse.records,
-      people: role === "admin" ? usersResponse.users.map(({ id, name, role: userRole }) => ({ id, name, role: userRole })) : engagementResponse.people,
+      people: role === "admin" ? usersResponse.users.map(({ id, name, role: userRole }) => ({ id, name, role: userRole })) : learningResponse.people,
+      learning: learningResponse.records,
+      aiConfigured: learningResponse.aiConfigured,
     });
   };
 
@@ -1105,6 +1125,30 @@ export function App() {
       await loadPortalData();
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to create task");
+      throw error;
+    }
+  };
+
+  const learningAction = async (body: Record<string, unknown>) => {
+    try {
+      await apiRequest<{ record: LearningRecord }>("/api/learning", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+      const message = body.kind === "chat"
+        ? "AI guidance received"
+        : body.kind === "submission"
+          ? "Submission saved"
+          : body.kind === "question"
+            ? "Question added"
+            : body.action === "scan"
+              ? "Similarity scan completed"
+              : "Auto-grade completed; faculty review is recommended";
+      setStatusMessage(message);
+      await loadPortalData();
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to complete learning action");
       throw error;
     }
   };
@@ -1237,7 +1281,7 @@ export function App() {
       </header>
 
       <main className="portal-main">
-        <section className="portal-title-row">
+        <section className={`portal-title-row ${role === "admin" ? "" : "compact-title-row"}`}>
           <div>
             <p className="eyebrow">{role === "admin" ? "Portal Administration" : role === "faculty" ? "Faculty Monitoring Platform" : "Student Learning Portal"}</p>
             <h1>{roleProfiles[role].title}</h1>
@@ -1258,7 +1302,7 @@ export function App() {
           </label>
         </section>
 
-        <PortalKpis role={role} data={portalData} />
+        {role === "admin" && <PortalKpis role={role} data={portalData} />}
         {statusMessage && (
           <div className="status-banner" role="status">
             {statusMessage}
@@ -1268,14 +1312,14 @@ export function App() {
         <nav className="portal-tabs" aria-label="Dashboard modules">
           {navigation.map(({ id, label }) => (
             <button className={view === id ? "active" : ""} type="button" key={id} onClick={() => goToView(id)}>
-              {id === "overview" ? "Dashboard" : label}
+              {label}
             </button>
           ))}
         </nav>
 
         <section className="dashboard-content" aria-live="polite">
           {view === "overview" && role === "admin" && <AdminOverview users={filteredData.users} onManageUsers={() => goToView("settings")} />}
-          {view === "overview" && role !== "admin" && <AssignmentWorkbench role={role} assignments={filteredData.assignments} subjects={filteredData.subjects} onCreateAssignment={createAssignment} />}
+          {view === "overview" && role !== "admin" && <AssignmentWorkspace role={role} currentUserId={currentPerson.id} assignments={filteredData.assignments} subjects={filteredData.subjects} people={filteredData.people} learning={filteredData.learning} onCreateAssignment={createAssignment} onLearningAction={learningAction} onOpenAi={() => goToView("aiSupport")} />}
           {view === "workspace" && role === "faculty" && (
             <Workspace
               subjects={filteredData.subjects}
@@ -1287,6 +1331,11 @@ export function App() {
           )}
           {view === "resources" && role === "faculty" && <Resources role={role} users={filteredData.users} />}
           {view === "activities" && role !== "admin" && <Activities role={role} assignments={filteredData.assignments} subjects={filteredData.subjects} onCreateAssignment={createAssignment} />}
+          {view === "questionBank" && role === "faculty" && <QuestionBank assignments={filteredData.assignments} records={filteredData.learning} onCreate={learningAction} />}
+          {view === "marksExport" && role === "faculty" && <MarksExport assignments={filteredData.assignments} records={filteredData.learning} people={filteredData.people} />}
+          {view === "aiExport" && role === "faculty" && <AiChatExport assignments={filteredData.assignments} records={filteredData.learning} people={filteredData.people} aiConfigured={portalData.aiConfigured} />}
+          {view === "roster" && role === "faculty" && <StudentRoster people={filteredData.people} learning={filteredData.learning} engagement={filteredData.records} />}
+          {view === "aiSupport" && role === "student" && <AiAssignmentSupport currentUserId={currentPerson.id} assignments={filteredData.assignments} records={filteredData.learning} onCreate={learningAction} aiConfigured={portalData.aiConfigured} />}
           {view === "engagement" && role !== "admin" && (
             <EngagementHub
               role={role}
@@ -1306,7 +1355,7 @@ export function App() {
         {navigation.map(({ id, label, icon: Icon }) => (
           <button className={`bottom-item ${view === id ? "active" : ""}`} type="button" key={id} onClick={() => goToView(id)}>
             <Icon size={18} />
-            <span>{label}</span>
+            <span>{id === "aiSupport" ? "AI Support" : label}</span>
           </button>
         ))}
       </nav>

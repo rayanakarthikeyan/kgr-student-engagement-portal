@@ -1,5 +1,5 @@
 export type RoleId = "admin" | "faculty" | "student";
-export type ViewId = "overview" | "workspace" | "resources" | "activities" | "engagement" | "analytics" | "settings";
+export type ViewId = "overview" | "workspace" | "resources" | "activities" | "engagement" | "analytics" | "settings" | "questionBank" | "marksExport" | "aiExport" | "roster" | "aiSupport";
 export type SubjectType = "Theory Only" | "Lab Only" | "Theory + Lab";
 
 export interface Subject {
