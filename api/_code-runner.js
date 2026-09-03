@@ -27,6 +27,42 @@ export default async function handler(req, res) {
     if (code.length > 100000 || stdin.length > 10000)
       return res.status(413).json({ error: "Runner input is too large" });
 
+    // 1. Gemini Java Simulator (Free, 1500/day limit)
+    if (language === "java" && process.env.GEMINI_API_KEY) {
+      try {
+        const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            system_instruction: {
+              parts: [{
+                text: "You are a strict, secure Java compiler and runtime environment. You will receive Java source code and optionally stdin. You must act as the execution engine and simulate the output. Output ONLY the exact raw text that would be printed to stdout. Do not use markdown blocks. Do not explain anything. If there is a compilation error, output the exact compiler error and nothing else."
+              }]
+            },
+            contents: [{
+              parts: [{ text: `Code:\n${code}\n\nStdin:\n${stdin}` }]
+            }]
+          }),
+          signal: AbortSignal.timeout(15000),
+        });
+
+        if (geminiResponse.ok) {
+          const aiData = await geminiResponse.json();
+          const simulatedOutput = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          const isError = simulatedOutput.includes("error:") || simulatedOutput.includes("Exception");
+          
+          return res.status(200).json({
+            status: isError ? "error" : "passed",
+            stdout: isError ? "" : simulatedOutput.trim(),
+            stderr: isError ? simulatedOutput.trim() : "",
+            durationMs: 0
+          });
+        }
+      } catch (e) {
+        console.error("Gemini Simulator failed, falling back...", e);
+      }
+    }
+
     if (process.env.JDOODLE_CLIENT_ID && process.env.JDOODLE_CLIENT_SECRET) {
       const response = await fetch("https://api.jdoodle.com/v1/execute", {
         method: "POST",

@@ -339,10 +339,53 @@ export async function submitAssessment(
   });
 }
 
+import initSqlJs from "sql.js";
+
 export async function runCode(
   token: string,
   input: { language: "java" | "sql"; code: string; stdin: string },
 ) {
+  if (input.language === "sql") {
+    try {
+      const startTime = performance.now();
+      const SQL = await initSqlJs({
+        locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+      });
+      const db = new SQL.Database();
+      
+      let stdout = "";
+      const results = db.exec(input.code);
+      
+      if (results.length > 0) {
+        for (const result of results) {
+          stdout += result.columns.join(" | ") + "\n";
+          stdout += "-".repeat(result.columns.join(" | ").length) + "\n";
+          for (const row of result.values) {
+            stdout += row.join(" | ") + "\n";
+          }
+          stdout += "\n";
+        }
+      } else {
+        stdout = "Query executed successfully. (No results to display)";
+      }
+      
+      const durationMs = Math.round(performance.now() - startTime);
+      return {
+        status: "passed" as const,
+        stdout: stdout.trim(),
+        stderr: "",
+        durationMs
+      };
+    } catch (e: any) {
+      return {
+        status: "error" as const,
+        stdout: "",
+        stderr: e.message || String(e),
+        durationMs: 0
+      };
+    }
+  }
+
   const data = await parseResponse(
     await fetch(`${API_BASE}/api/code-runner`, {
       method: "POST",

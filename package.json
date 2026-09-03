@@ -29,12 +29,14 @@
     "pg": "^8.23.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "sql.js": "^1.14.2",
     "tailwindcss": "^4.3.3",
     "ws": "^8.21.3"
   },
   "devDependencies": {
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",
+    "@types/sql.js": "^1.4.11",
     "@vitejs/plugin-react": "^4.3.4",
     "prettier": "^3.9.6",
     "typescript": "^5.7.2",
