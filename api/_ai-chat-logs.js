@@ -1,4 +1,4 @@
-import { _auth, _createClient } from "./_shared.js";
+import { requireUser, createSupabaseClient } from "./_shared.js";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -6,8 +6,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const user = await _auth(req);
-    if (!user || user.role !== "faculty") {
+    const supabase = createSupabaseClient({ requirePrivileged: true });
+    const user = await requireUser(supabase, req, ["faculty"]);
+    if (!user) {
       return res.status(401).json({ error: "Unauthorized. Only faculty can view AI chat logs." });
     }
 
@@ -15,8 +16,6 @@ export default async function handler(req, res) {
     if (!userId) {
       return res.status(400).json({ error: "Missing userId parameter" });
     }
-
-    const supabase = _createClient();
     const { data, error } = await supabase
       .from("ai_chat_logs")
       .select("*")
