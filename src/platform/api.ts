@@ -209,6 +209,18 @@ export async function enrollInCourse(token: string, courseId: string) {
   });
 }
 
+export async function assignCourseToStudents(
+  token: string,
+  courseId: string,
+  userIds: string[],
+) {
+  return platformMutation(token, "bulk-enrollment", {
+    courseId,
+    userIds,
+    tracks: ["theory", "lab"],
+  });
+}
+
 export async function publishResource(
   token: string,
   resource: Pick<

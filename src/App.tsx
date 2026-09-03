@@ -26,6 +26,7 @@ import { CourseworkManager } from "./components/CourseworkManager";
 import { FacultyAnalytics } from "./components/FacultyAnalytics";
 import { FacultyLabWorkspace } from "./components/FacultyLabWorkspace";
 import { FacultyResourceManager } from "./components/FacultyResourceManager";
+import { FacultyEnrollmentManager } from "./components/FacultyEnrollmentManager";
 import { ResourceViewer } from "./components/ResourceViewer";
 import { StudentDashboard } from "./components/StudentDashboard";
 import { SettingsView } from "./components/SettingsView";
@@ -61,6 +62,7 @@ type ViewId =
   | "resources"
   | "lab-workspace"
   | "telemetry"
+  | "enrollment"
   | "settings";
 type Theme = "light" | "dark";
 
@@ -83,6 +85,7 @@ const studentNavigation: NavItem[] = [
 const facultyNavigation: NavItem[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { isHeader: true, label: "Course Management" },
+  { id: "enrollment", label: "Enrollment management", icon: Users },
   { id: "resources", label: "Theory resources", icon: FileStack },
   { id: "lab-workspace", label: "Lab Workspace", icon: FlaskConical },
   { id: "coursework", label: "Practice", icon: ClipboardList },
@@ -136,6 +139,10 @@ function pageTitle(view: ViewId) {
     telemetry: [
       "Student insights",
       "Review study engagement, assessment integrity, and lab debugging behavior.",
+    ],
+    enrollment: [
+      "Enrollment management",
+      "Publish courses to specific cohorts or all students.",
     ],
     settings: [
       "Account Settings",
@@ -360,6 +367,7 @@ export default function App() {
           onChange={setLearningResources}
         />
       );
+    if (view === "enrollment") return <FacultyEnrollmentManager session={session} />;
     if (view === "telemetry") return <FacultyAnalytics session={session} />;
     if (view === "settings") return <SettingsView session={session} />;
     return (
