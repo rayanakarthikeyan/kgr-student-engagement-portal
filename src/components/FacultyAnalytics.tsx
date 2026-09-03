@@ -304,9 +304,7 @@ export function FacultyAnalytics({
     <div className="mx-auto max-w-[1440px] space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--line)] pb-5">
         <div>
-          <p className="text-xs text-[var(--muted)]">
-            KG Reddy College of Engineering and Technology
-          </p>
+          <p className="text-xs text-[var(--muted)]">KGRCET</p>
           <h2 className="mt-2 text-2xl font-semibold">
             {compact ? "Faculty overview" : "Student insights"}
           </h2>
@@ -375,7 +373,51 @@ export function FacultyAnalytics({
       </section>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)]">
         <section className="min-w-0">
-          <div className="overflow-x-auto">
+          
+          <div className="grid gap-4 md:hidden">
+            {pageStudents.map((student) => {
+              const row = summaries.get(student.id)!;
+              return (
+                <div
+                  key={student.id}
+                  className={`flex flex-col gap-3 rounded-xl border p-4 shadow-sm transition-colors ${
+                    selected?.id === student.id
+                      ? "border-cyan-500/50 bg-cyan-500/5"
+                      : "border-[var(--line)] bg-[var(--surface)]"
+                  }`}
+                  onClick={() => setSelectedId(student.id)}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium text-[var(--ink)] truncate">{student.name}</div>
+                      <div className="text-xs text-[var(--muted)] truncate">{student.rollNumber || student.email}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                       <div className="text-lg font-bold text-cyan-600">{row.score == null ? "-" : row.score + "%"}</div>
+                       <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">Average</div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs border-t border-[var(--line)] pt-3 mt-1">
+                    <div className="text-[var(--muted)]">
+                      Dept/Sec: <strong className="text-[var(--ink)] font-medium">{student.department || "-"} / {student.section || "-"}</strong>
+                    </div>
+                    <div className="text-[var(--muted)]">
+                      Submitted: <strong className="text-[var(--ink)] font-medium">{row.final.length} / {row.work.length}</strong>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {!filtered.length && (
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-8 text-center text-sm text-[var(--muted)]">
+                No students match these filters.
+              </div>
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="data-table min-w-[560px]">
               <thead>
                 <tr>
@@ -422,7 +464,8 @@ export function FacultyAnalytics({
               </tbody>
             </table>
           </div>
-          <footer className="mt-3 flex items-center justify-between text-xs text-[var(--muted)]">
+          
+          <footer className="mt-4 flex items-center justify-between text-xs text-[var(--muted)]">
             <span>
               {filtered.length} students / Page {currentPage + 1} of {pageCount}
             </span>
@@ -594,7 +637,7 @@ export function FacultyAnalytics({
                 Close
               </button>
             </div>
-            <h1>KG Reddy College of Engineering and Technology</h1>
+            <h1>KGRCET</h1>
             <h2>
               {report === "roster"
                 ? "Student roster and insights"

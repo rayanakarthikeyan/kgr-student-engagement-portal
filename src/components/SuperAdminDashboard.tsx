@@ -91,7 +91,61 @@ export function SuperAdminDashboard({ token }: SuperAdminDashboardProps) {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)]">
+      <div className="grid gap-4 sm:hidden">
+        {users.map((user) => (
+          <div key={user.id} className="flex flex-col gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate font-medium text-[var(--ink)]">{user.name}</div>
+                <div className="truncate text-xs text-[var(--muted)]">{user.email}</div>
+              </div>
+              <span
+                className={`shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                  user.role === "admin"
+                    ? "bg-purple-500/10 text-purple-500"
+                    : user.role === "faculty"
+                      ? "bg-amber-500/10 text-amber-500"
+                      : "bg-emerald-500/10 text-emerald-500"
+                }`}
+              >
+                {user.role}
+              </span>
+            </div>
+            
+            {(user.rollNumber || user.department) && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--muted)]">
+                {user.rollNumber && <span>Roll: <strong className="font-medium text-[var(--ink)]">{user.rollNumber}</strong></span>}
+                {user.department && <span>Dept: <strong className="font-medium text-[var(--ink)]">{user.department}</strong></span>}
+              </div>
+            )}
+
+            {user.role !== "admin" && (
+              <div className="mt-1 flex justify-end border-t border-[var(--line)] pt-3">
+                <button
+                  type="button"
+                  onClick={() => handleDelete(user)}
+                  disabled={deletingId === user.id}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                >
+                  {deletingId === user.id ? (
+                    <span className="size-4 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
+                  ) : (
+                    <Trash2 size={14} />
+                  )}
+                  Delete Account
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+        {users.length === 0 && (
+          <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-8 text-center text-sm text-[var(--muted)]">
+            No users found.
+          </div>
+        )}
+      </div>
+
+      <div className="hidden overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)] sm:block">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>

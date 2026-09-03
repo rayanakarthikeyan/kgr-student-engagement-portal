@@ -408,7 +408,7 @@ export default function App() {
             </span>
             <span>
               <strong className="block text-[15px] leading-tight text-[var(--ink)]">
-                KG Reddy College of Engineering and Technology
+                KGRCET
               </strong>
               <span className="text-xs text-[var(--muted)]">
                 Academic Learning Platform
