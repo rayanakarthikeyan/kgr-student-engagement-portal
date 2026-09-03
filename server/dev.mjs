@@ -3,10 +3,13 @@ import { spawn } from "node:child_process";
 const isWindows = process.platform === "win32";
 const command = isWindows ? "cmd.exe" : "npm";
 
-const processes = [
-  spawn(command, isWindows ? ["/c", "npm", "run", "api"] : ["run", "api"], { stdio: "inherit" }),
-  spawn(command, isWindows ? ["/c", "npm", "run", "dev:vite"] : ["run", "dev:vite"], { stdio: "inherit" }),
-];
+function run(script) {
+  return spawn(command, isWindows ? ["/c", "npm", "run", script] : ["run", script], {
+    stdio: "inherit",
+  });
+}
+
+const processes = [run("api:local"), run("dev:vite")];
 
 function shutdown() {
   for (const child of processes) child.kill();
