@@ -6,6 +6,7 @@ import {
   ClipboardList,
   FileText,
   GraduationCap,
+  HeartHandshake,
   LayoutDashboard,
   LogOut,
   KeyRound,
@@ -15,11 +16,11 @@ import {
   UserCheck,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { EngagementHub, TimeMonitor, type EngagementRecord, type PortalPerson } from "./EngagementHub";
 import {
   roleConfig,
   roleProfiles,
-  studentProfiles,
   type RoleId,
   type Subject,
   type SubjectType,
@@ -66,10 +67,13 @@ interface SessionAuth {
   password: string;
 }
 
+
 interface PortalData {
   users: ApiUser[];
   subjects: ApiSubject[];
   assignments: ApiAssignment[];
+  records: EngagementRecord[];
+  people: PortalPerson[];
 }
 
 const navigationByRole: Record<RoleId, { id: ViewId; label: string; icon: React.ElementType }[]> = {
@@ -82,23 +86,17 @@ const navigationByRole: Record<RoleId, { id: ViewId; label: string; icon: React.
     { id: "workspace", label: "Student Groups", icon: BookOpen },
     { id: "resources", label: "Students", icon: GraduationCap },
     { id: "activities", label: "Assignments & Quizzes", icon: ClipboardList },
+    { id: "engagement", label: "Engagement", icon: HeartHandshake },
     { id: "analytics", label: "Time Monitor", icon: BarChart3 },
   ],
   student: [
     { id: "overview", label: "Dashboard", icon: LayoutDashboard },
     { id: "activities", label: "My Assignments & Quizzes", icon: ClipboardList },
+    { id: "engagement", label: "Connect", icon: HeartHandshake },
     { id: "analytics", label: "My Learning Time", icon: BarChart3 },
   ],
 };
 
-const analytics = [
-  ["Assignment completion", 0],
-  ["Quiz completion", 0],
-  ["Quiz performance", 0],
-  ["Average learning time", 0],
-  ["Low activity students", 0],
-  ["Pending reviews", 0],
-] as const;
 
 interface AssignmentCardData {
   title: string;
@@ -150,6 +148,12 @@ function accountLabel(user: ApiUser) {
   return user.email.split("@")[0] || user.name;
 }
 
+function shortDuration(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
 function workTypeLabel(type: SubjectType) {
   if (type === "Theory Only") return "Assignments only";
   if (type === "Lab Only") return "Quizzes only";
@@ -164,7 +168,7 @@ function badgeClass(value: SubjectType | Subject["risk"] | string) {
   return "";
 }
 
-function LoginScreen({ onLogin }: { onLogin: (role: RoleId, auth: SessionAuth, name?: string) => void }) {
+function LoginScreen({ onLogin }: { onLogin: (user: ApiUser, auth: SessionAuth) => void }) {
   const [email, setEmail] = useState("admin");
   const [password, setPassword] = useState("admin123");
   const [error, setError] = useState("");
@@ -197,7 +201,7 @@ function LoginScreen({ onLogin }: { onLogin: (role: RoleId, auth: SessionAuth, n
       }
 
       setIsLoading(false);
-      onLogin(data.user.role, { email: normalizedEmail, password }, data.user.name);
+      onLogin(data.user, { email: normalizedEmail, password });
     } catch (error) {
       setError(error instanceof TypeError ? "Unable to connect to the portal server" : error instanceof Error ? error.message : "Invalid email or password");
       setIsLoading(false);
@@ -268,20 +272,6 @@ function LoginScreen({ onLogin }: { onLogin: (role: RoleId, auth: SessionAuth, n
   );
 }
 
-function MetricGrid({ role }: { role: RoleId }) {
-  return (
-    <section className="summary-grid">
-      {roleProfiles[role].metrics.map(([label, value, trend]) => (
-        <article className="metric-card" key={label}>
-          <span className="metric-label">{label}</span>
-          <strong>{value}</strong>
-          <span className="metric-trend">{trend}</span>
-        </article>
-      ))}
-    </section>
-  );
-}
-
 function FilterBar({ role }: { role: RoleId }) {
   return (
     <div className="filter-bar">
@@ -299,27 +289,14 @@ function FilterBar({ role }: { role: RoleId }) {
   );
 }
 
-function AnalyticsBars() {
-  return (
-    <div className="chart-grid">
-      {analytics.map(([label, value]) => (
-        <div className="bar-row" key={label}>
-          <strong>{label}</strong>
-          <div className="bar-track">
-            <div className="bar" style={{ width: `${value}%` }} />
-          </div>
-          <span>{value}%</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function PortalKpis({ role, data }: { role: RoleId; data: PortalData }) {
   const studentCount = data.users.filter((user) => user.role === "student").length;
   const facultyCount = data.users.filter((user) => user.role === "faculty").length;
   const inactiveCount = data.users.filter((user) => user.is_active === false).length;
   const submittedCount = data.assignments.reduce((total, assignment) => total + (assignment.submitted || 0), 0);
+  const trackedSeconds = data.records
+    .filter((record) => record.kind === "time_session")
+    .reduce((total, record) => total + Number(record.metadata.active_seconds || 0), 0);
 
   const values = {
     admin: [
@@ -332,13 +309,13 @@ function PortalKpis({ role, data }: { role: RoleId; data: PortalData }) {
       ["Active Tasks", String(data.assignments.length), "Learning tasks", ClipboardList],
       ["Enrolled Students", String(studentCount), "Student accounts", UsersIcon],
       ["Submitted", String(submittedCount), "Recorded submissions", FileText],
-      ["Learning Time", "0 min", "No time tracked yet", BarChart3],
+      ["Learning Time", shortDuration(trackedSeconds), trackedSeconds ? "Active portal time" : "No time tracked yet", BarChart3],
     ],
     student: [
       ["Pending Work", String(data.assignments.length), "Available tasks", ClipboardList],
       ["Assigned Groups", String(data.subjects.length), "Learning groups", BookOpen],
       ["Submitted", String(submittedCount), "Recorded submissions", FileText],
-      ["Learning Time", "0 min", "No time tracked yet", BarChart3],
+      ["Learning Time", shortDuration(trackedSeconds), trackedSeconds ? "Your active portal time" : "No time tracked yet", BarChart3],
     ],
   } as const;
 
@@ -839,88 +816,6 @@ function Activities({ role, assignments, subjects: subjectRows, onCreateAssignme
   );
 }
 
-function Engagement({ users, assignments }: { users: ApiUser[]; assignments: ApiAssignment[] }) {
-  const students = users.filter((user) => user.role === "student");
-
-  return (
-    <section className="content-grid">
-      <article className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>Learning Time Monitor</h2>
-            <p>Track how much time students spend learning on the platform. Detailed timers can be connected to student sessions next.</p>
-          </div>
-        </div>
-        <div className="list-stack">
-          {students.length === 0 && (
-            <div className="empty-state">
-              <h3>No students to monitor</h3>
-              <p>Add student accounts to start monitoring learning time.</p>
-            </div>
-          )}
-          {students.map((student) => (
-            <div className="list-row" key={student.id}>
-              <div>
-                <h3>{student.name}</h3>
-                <p>{accountLabel(student)}</p>
-              </div>
-              <span className="badge">0 min tracked</span>
-            </div>
-          ))}
-        </div>
-      </article>
-      <aside className="panel">
-        <h2>Monitoring Summary</h2>
-        <p>{assignments.length} active assignments or quizzes.</p>
-        <p>{students.length} students available for monitoring.</p>
-        <p>Time values currently start at zero until student session tracking is enabled.</p>
-      </aside>
-    </section>
-  );
-}
-
-function Analytics({ role }: { role: RoleId }) {
-  return (
-    <>
-      <MetricGrid role={role} />
-      <section className="content-grid">
-        <article className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Time and Completion Analytics</h2>
-              <p>Faculty monitoring signals for assignments, quizzes, submissions, and platform time.</p>
-            </div>
-          </div>
-          <AnalyticsBars />
-        </article>
-        <aside className="panel">
-          <h2>Student Monitoring Profiles</h2>
-          <p>Submitted work, pending tasks, feedback history, quiz attempts, and time spent.</p>
-          <div className="profile-grid">
-            {studentProfiles.length === 0 && (
-              <div className="empty-state">
-                <h3>No student profiles yet</h3>
-                <p>Monitoring profiles will appear after students are added and begin work.</p>
-              </div>
-            )}
-            {studentProfiles.map(([name, section, subject, progress, weak, trend]) => (
-              <div className="profile-card" key={name}>
-                <h3>{name}</h3>
-                <p>
-                  {section} / {subject}
-                </p>
-                <strong>{progress}</strong>
-                <p>Weak topics: {weak}</p>
-                <span className={`badge ${badgeClass(trend)}`}>{trend}</span>
-              </div>
-            ))}
-          </div>
-        </aside>
-      </section>
-    </>
-  );
-}
-
 function AdminOverview({ users, onManageUsers }: { users: ApiUser[]; onManageUsers: () => void }) {
   const facultyCount = users.filter((user) => user.role === "faculty").length;
   const studentCount = users.filter((user) => user.role === "student").length;
@@ -1082,13 +977,15 @@ export function App() {
   const [role, setRole] = useState<RoleId>("admin");
   const [sessionName, setSessionName] = useState("admin");
   const [sessionAuth, setSessionAuth] = useState<SessionAuth | null>(null);
+  const [sessionUser, setSessionUser] = useState<ApiUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [view, setView] = useState<ViewId>("overview");
   const [query, setQuery] = useState("");
   const [selectedSubjectIndex, setSelectedSubjectIndex] = useState(0);
   const [modalSubject, setModalSubject] = useState<Subject | null>(null);
-  const [portalData, setPortalData] = useState<PortalData>({ users: [], subjects: [], assignments: [] });
+  const [portalData, setPortalData] = useState<PortalData>({ users: [], subjects: [], assignments: [], records: [], people: [] });
   const [statusMessage, setStatusMessage] = useState("");
+  const lastActivityRef = useRef(Date.now());
 
   const filteredData = useMemo(() => {
     const search = query.trim().toLowerCase();
@@ -1098,6 +995,8 @@ export function App() {
       users: portalData.users.filter((user) => `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(search)),
       subjects: portalData.subjects.filter((subject) => `${subject.name} ${subject.semester} ${subject.section}`.toLowerCase().includes(search)),
       assignments: portalData.assignments.filter((assignment) => `${assignment.title} ${assignment.subjects?.name ?? ""}`.toLowerCase().includes(search)),
+      records: portalData.records.filter((record) => `${record.title} ${record.body} ${record.kind}`.toLowerCase().includes(search)),
+      people: portalData.people,
     };
   }, [portalData, query]);
 
@@ -1124,17 +1023,23 @@ export function App() {
     const assignmentsPromise = role === "admin"
       ? Promise.resolve({ assignments: [] as ApiAssignment[] })
       : apiRequest<{ assignments: ApiAssignment[] }>("/api/assignments", { headers });
+    const engagementPromise = role === "admin"
+      ? Promise.resolve({ records: [] as EngagementRecord[], people: [] as PortalPerson[] })
+      : apiRequest<{ records: EngagementRecord[]; people: PortalPerson[] }>("/api/engagement", { headers });
 
-    const [usersResponse, subjectsResponse, assignmentsResponse] = await Promise.all([
+    const [usersResponse, subjectsResponse, assignmentsResponse, engagementResponse] = await Promise.all([
       usersPromise,
       subjectsPromise,
       assignmentsPromise,
+      engagementPromise,
     ]);
 
     setPortalData({
       users: usersResponse.users,
       subjects: subjectsResponse.subjects,
       assignments: assignmentsResponse.assignments,
+      records: engagementResponse.records,
+      people: role === "admin" ? usersResponse.users.map(({ id, name, role: userRole }) => ({ id, name, role: userRole })) : engagementResponse.people,
     });
   };
 
@@ -1204,23 +1109,93 @@ export function App() {
     }
   };
 
+  const createEngagement = async (body: Record<string, unknown>, options: { quiet?: boolean } = {}) => {
+    try {
+      const response = await apiRequest<{ record: EngagementRecord }>("/api/engagement", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+      if (options.quiet) {
+        setPortalData((current) => ({
+          ...current,
+          records: [response.record, ...current.records.filter((record) => record.id !== response.record.id)],
+        }));
+      } else {
+        setStatusMessage("Engagement update saved");
+        await loadPortalData();
+      }
+    } catch (error) {
+      if (!options.quiet) setStatusMessage(error instanceof Error ? error.message : "Unable to save engagement update");
+      if (!options.quiet) throw error;
+    }
+  };
+
+  const updateEngagement = async (id: string, body: Record<string, unknown>) => {
+    try {
+      await apiRequest<{ record: EngagementRecord }>("/api/engagement", {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ id, ...body }),
+      });
+      setStatusMessage("Engagement update saved");
+      await loadPortalData();
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to update engagement record");
+      throw error;
+    }
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated || role !== "student" || !sessionUser) return;
+
+    const markActive = () => { lastActivityRef.current = Date.now(); };
+    const sessionId = `time-${sessionUser.id}-${new Date().toISOString().slice(0, 10)}`;
+    const heartbeat = (deltaSeconds: number) => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastActivityRef.current > 60_000) return;
+      void createEngagement({
+        id: sessionId,
+        kind: "time_session",
+        title: "Active portal learning",
+        status: "active",
+        metadata: { delta_seconds: deltaSeconds, context: view },
+      }, { quiet: true });
+    };
+
+    window.addEventListener("pointerdown", markActive);
+    window.addEventListener("keydown", markActive);
+    window.addEventListener("scroll", markActive, { passive: true });
+    heartbeat(0);
+    const interval = window.setInterval(() => heartbeat(30), 30_000);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("pointerdown", markActive);
+      window.removeEventListener("keydown", markActive);
+      window.removeEventListener("scroll", markActive);
+    };
+  }, [isAuthenticated, role, sessionUser?.id, view]);
+
   const goToView = (nextView: ViewId) => {
     setView(nextView);
   };
 
-  const login = (nextRole: RoleId, auth: SessionAuth, name?: string) => {
-    setRole(nextRole);
+  const login = (user: ApiUser, auth: SessionAuth) => {
+    setRole(user.role);
     setSessionAuth(auth);
-    setSessionName(name ?? (nextRole === "student" ? "Student" : nextRole === "faculty" ? "Faculty" : "admin"));
+    setSessionUser(user);
+    setSessionName(user.name);
     setView("overview");
     setQuery("");
     setIsAuthenticated(true);
-    window.history.replaceState(null, "", `/${nextRole}/dashboard`);
+    window.history.replaceState(null, "", `/${user.role}/dashboard`);
   };
 
   const logout = () => {
     setIsAuthenticated(false);
     setSessionAuth(null);
+    setSessionUser(null);
     setModalSubject(null);
     window.history.replaceState(null, "", "/login");
   };
@@ -1230,6 +1205,11 @@ export function App() {
   }
 
   const navigation = navigationByRole[role];
+  const currentPerson: PortalPerson = {
+    id: sessionUser?.id ?? "",
+    name: sessionUser?.name ?? sessionName,
+    role,
+  };
 
   return (
     <div className="portal-shell">
@@ -1307,8 +1287,17 @@ export function App() {
           )}
           {view === "resources" && role === "faculty" && <Resources role={role} users={filteredData.users} />}
           {view === "activities" && role !== "admin" && <Activities role={role} assignments={filteredData.assignments} subjects={filteredData.subjects} onCreateAssignment={createAssignment} />}
-          {view === "engagement" && <Engagement users={filteredData.users} assignments={filteredData.assignments} />}
-          {view === "analytics" && role !== "admin" && <Analytics role={role} />}
+          {view === "engagement" && role !== "admin" && (
+            <EngagementHub
+              role={role}
+              currentUser={currentPerson}
+              records={filteredData.records}
+              people={filteredData.people}
+              onCreate={createEngagement}
+              onUpdate={updateEngagement}
+            />
+          )}
+          {view === "analytics" && role !== "admin" && <TimeMonitor role={role} currentUser={currentPerson} records={filteredData.records} people={filteredData.people} />}
           {view === "settings" && role === "admin" && <SettingsView users={filteredData.users} onCreateUser={createUser} onToggleUser={toggleUser} />}
         </section>
       </main>

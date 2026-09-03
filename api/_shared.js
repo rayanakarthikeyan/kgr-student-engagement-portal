@@ -27,6 +27,7 @@ function getLocalDb() {
     localDb.users ||= [];
     localDb.subjects ||= [];
     localDb.assignments ||= [];
+    localDb.engagement_records ||= [];
   }
   return localDb;
 }

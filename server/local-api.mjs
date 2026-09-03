@@ -7,6 +7,7 @@ import summary from "../api/summary.js";
 import users from "../api/users.js";
 import subjects from "../api/subjects.js";
 import assignments from "../api/assignments.js";
+import engagement from "../api/engagement.js";
 import bootstrapAdmin from "../api/bootstrap-admin.js";
 
 dotenv.config({ path: ".env.local" });
@@ -24,6 +25,7 @@ const routes = {
   "/api/users": users,
   "/api/subjects": subjects,
   "/api/assignments": assignments,
+  "/api/engagement": engagement,
   "/api/bootstrap-admin": bootstrapAdmin,
 };
 
