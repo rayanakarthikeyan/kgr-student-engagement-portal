@@ -487,3 +487,21 @@ export async function bulkAutoGrade(token: string) {
   );
   return data as { gradedCount: number; message: string };
 }
+
+export async function loadAllUsers(token: string): Promise<SessionUser[]> {
+  const data = await parseResponse(
+    await fetch(`${API_BASE}/api/users`, {
+      headers: authHeaders(token),
+    }),
+  );
+  return ((data.users || []) as Array<Record<string, unknown>>).map(mapUser);
+}
+
+export async function deleteUser(token: string, userId: string): Promise<void> {
+  await parseResponse(
+    await fetch(`${API_BASE}/api/users?id=${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+    }),
+  );
+}

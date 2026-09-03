@@ -27,6 +27,7 @@ import { FacultyResourceManager } from "./components/FacultyResourceManager";
 import { ResourceViewer } from "./components/ResourceViewer";
 import { StudentDashboard } from "./components/StudentDashboard";
 import { SettingsView } from "./components/SettingsView";
+import { SuperAdminDashboard } from "./components/SuperAdminDashboard";
 import { courses } from "./platform/demo";
 import {
   enrollInCourse,
@@ -48,6 +49,7 @@ import type {
 
 type ViewId =
   | "dashboard"
+  | "admin-dashboard"
   | "java-learn"
   | "java-lab"
   | "dbms-learn"
@@ -82,6 +84,11 @@ const facultyNavigation: NavItem[] = [
   { id: "coursework", label: "Practice", icon: ClipboardList },
   { id: "assessment", label: "Assessments", icon: ClipboardCheck },
   { id: "telemetry", label: "Student insights", icon: BarChart3 },
+];
+
+const adminNavigation: NavItem[] = [
+  { isHeader: true, label: "Super Admin" },
+  { id: "admin-dashboard", label: "User Management", icon: Users },
 ];
 
 function pageTitle(view: ViewId) {
@@ -126,6 +133,10 @@ function pageTitle(view: ViewId) {
       "Account Settings",
       "Manage your profile information and preferences.",
     ],
+    "admin-dashboard": [
+      "User Management",
+      "Manage platform users, including removing accounts.",
+    ],
   };
   return titles[view];
 }
@@ -168,6 +179,9 @@ export default function App() {
         if (!active) return;
         saveSession(validated);
         setSession(validated);
+        if (validated.user.role === "admin") {
+          setView("admin-dashboard");
+        }
       })
       .catch(() => {
         if (!active) return;
@@ -223,7 +237,7 @@ export default function App() {
     setLearningResources([]);
     setDashboardAssignments([]);
     setDashboardSubmissions([]);
-    setView("dashboard");
+    setView(nextSession.user.role === "admin" ? "admin-dashboard" : "dashboard");
   };
 
   const logout = () => {
@@ -241,11 +255,12 @@ export default function App() {
   );
 
   const isStudent = session?.user.role === "student";
-  const navigation = isStudent ? studentNavigation : facultyNavigation;
+  const navigation = session?.user.role === "admin" ? adminNavigation : (isStudent ? studentNavigation : facultyNavigation);
   const [title, subtitle] = pageTitle(view);
 
   const content = useMemo(() => {
     if (!session) return null;
+    if (view === "admin-dashboard") return <SuperAdminDashboard token={session.token} />;
     if (view === "dashboard") {
       return isStudent ? (
         <StudentDashboard
@@ -551,7 +566,7 @@ export default function App() {
               ) : (
                 <Users size={17} />
               )}
-              {session.user.role === "student" ? "Student" : "Faculty"}
+              {session.user.role === "student" ? "Student" : session.user.role === "admin" ? "Super Admin" : "Faculty"}
               <ChevronDown size={14} className="text-[var(--muted)]" />
             </button>
           </div>

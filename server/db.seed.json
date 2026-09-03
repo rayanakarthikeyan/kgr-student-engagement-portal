@@ -1,6 +1,15 @@
 {
   "users": [
     {
+      "id": "u-admin-123",
+      "name": "Support Admin",
+      "email": "rayanakarthikeyan@gmail.com",
+      "password": "admin123",
+      "role": "admin",
+      "title": "Super Admin",
+      "is_active": true
+    },
+    {
       "id": "u-faculty-umashankar",
       "name": "Uma Shankar",
       "email": "umashankar@kgr.ac.in",
