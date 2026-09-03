@@ -212,30 +212,32 @@ function AssignmentWorkspace({ assignment, submission, session, theme, onEvent, 
       </div>
     </div>);
 }
-function StudentCoursework({ assignments, submissions, session, initialType, theme, onEvent, onSaved }: {
+function StudentCoursework({ assignments, submissions, session, initialType, courseFilter, theme, onEvent, onSaved }: {
     assignments: AssignmentRecord[];
     submissions: LearningRecord[];
     session: AuthSession;
     initialType: CourseworkFilter;
+    courseFilter?: string;
     theme: "light" | "dark";
     onEvent: (event: ActivityLog) => void;
     onSaved: (record: LearningRecord) => void;
 }) {
     const [filter, setFilter] = useState<CourseworkFilter>(initialType);
-    const [courseFilter, setCourseFilter] = useState("");
+    const [courseFilterState, setCourseFilterState] = useState(courseFilter || "");
     const [unitFilter, setUnitFilter] = useState("");
     const [active, setActive] = useState<AssignmentRecord | null>(null);
-    const visible = useMemo(() => assignments.filter((item) => (filter === "all" || assignmentType(item) === filter) && (!courseFilter || assignmentCourse(item) === courseFilter) && (!unitFilter || String(item.unit_number) === unitFilter)), [assignments, filter, courseFilter, unitFilter]);
+    const visible = useMemo(() => assignments.filter((item) => (filter === "all" || assignmentType(item) === filter) && (!courseFilterState || assignmentCourse(item) === courseFilterState) && (!unitFilter || String(item.unit_number) === unitFilter)), [assignments, filter, courseFilterState, unitFilter]);
     const queueTitle = initialType === "practice" ? "Practice queue" : initialType === "assessment" ? "Assessments" : initialType === "lab" ? "Lab experiments" : "My learning queue";
     const queueDescription = initialType === "practice" ? "Non-proctored MCQs and IDE questions assigned by faculty." : initialType === "assessment" ? "Timed, proctored assessments with automatic submission guardrails." : initialType === "lab" ? "Official KGR25 experiments with an IDE workspace and attempt tracking." : "Assigned academic work organized by course and unit.";
     if (active)
         return <AssignmentWorkspace assignment={active} submission={submissions.find((item) => item.assignment_id === active.id)} session={session} theme={theme} onEvent={onEvent} onBack={() => setActive(null)} onSaved={onSaved}/>;
-    return <div className="space-y-6"><section className="flex flex-col gap-4 border-b border-[var(--line)] pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-cyan-600">Assigned coursework</p><h2 className="mt-2 text-3xl font-semibold">{queueTitle}</h2><p className="mt-2 text-sm text-[var(--muted)]">{queueDescription}</p></div><span className="tag cyan"><ClipboardList size={13}/>KGR25 curriculum</span></section><div className="flex flex-wrap gap-3"><label className="text-xs">Course<select className="profile-select" value={courseFilter} onChange={event => setCourseFilter(event.target.value)}><option value="">Both courses</option><option value="JAVA">OOP through Java</option><option value="DBMS">DBMS</option></select></label><label className="text-xs">Unit<select className="profile-select" value={unitFilter} onChange={event => setUnitFilter(event.target.value)}><option value="">All units</option>{[1,2,3,4,5].map(unit => <option key={unit} value={unit}>Unit {unit}</option>)}</select></label></div>{initialType === "all" && <div className="segmented-control w-full overflow-x-auto sm:w-fit">{(["all", "practice", "assessment", "lab"] as const).map((value) => <button className={filter === value ? "active" : ""} key={value} onClick={() => setFilter(value)} type="button">{value === "all" ? "All" : typeLabel(value)}</button>)}</div>}{visible.length === 0 ? <div className="panel empty-panel min-h-[260px]"><ClipboardList size={30}/><span>No {filter === "all" ? "coursework" : typeLabel(filter).toLowerCase()} has been assigned.</span></div> : <div className="grid gap-4 xl:grid-cols-2">{visible.map((assignment) => { const record = submissions.find((item) => item.assignment_id === assignment.id); const status = record?.status || "not_started"; return <article className="panel p-5" key={assignment.id}><div className="flex items-start justify-between gap-4"><div className="flex flex-wrap gap-2"><span className={`tag ${assignmentCourse(assignment) === "JAVA" ? "cyan" : "amber"}`}>{assignmentCourse(assignment)}</span><span className="tag neutral">Unit {assignment.unit_number || 1}</span><span className="tag neutral">{assignment.work_mode?.toUpperCase() || typeLabel(assignmentType(assignment))}</span></div><span className="text-right text-xs text-[var(--muted)]"><strong className="block text-base text-[var(--ink)]">{record?.score ?? assignment.max_marks}</strong>{record?.score != null ? `/${assignment.max_marks}` : "marks"}</span></div><h3 className="mt-4 text-base font-semibold">{assignment.title}</h3><p className="mt-2 line-clamp-3 text-xs leading-5 text-[var(--muted)]">{assignment.description}</p><div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-4 text-xs text-[var(--muted)]"><span className="flex items-center gap-2"><CalendarDays size={15}/>Due {dueLabel(assignment.due_date)}</span><span className={`status-pill ${status === "submitted" || status === "graded" ? "on-track" : isPastDeadline(assignment.due_date) ? "at-risk" : "needs-attention"}`}>{status === "not_started" ? (isPastDeadline(assignment.due_date) ? "Closed" : "Not started") : status}</span></div><button className="primary-button mt-4 w-full" onClick={() => setActive(assignment)} type="button">{status === "submitted" || status === "graded" ? "View submission" : status === "draft" ? "Continue work" : "Open assignment"}</button></article>; })}</div>}</div>;
+    return <div className="space-y-6"><section className="flex flex-col gap-4 border-b border-[var(--line)] pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-cyan-600">Assigned coursework</p><h2 className="mt-2 text-3xl font-semibold">{queueTitle}</h2><p className="mt-2 text-sm text-[var(--muted)]">{queueDescription}</p></div><span className="tag cyan"><ClipboardList size={13}/>KGR25 curriculum</span></section><div className="flex flex-wrap gap-3"><label className="text-xs">Course<select className="profile-select" value={courseFilterState} onChange={event => setCourseFilterState(event.target.value)}><option value="">Both courses</option><option value="JAVA">OOP through Java</option><option value="DBMS">DBMS</option></select></label><label className="text-xs">Unit<select className="profile-select" value={unitFilter} onChange={event => setUnitFilter(event.target.value)}><option value="">All units</option>{[1,2,3,4,5].map(unit => <option key={unit} value={unit}>Unit {unit}</option>)}</select></label></div>{initialType === "all" && <div className="segmented-control w-full overflow-x-auto sm:w-fit">{(["all", "practice", "assessment", "lab"] as const).map((value) => <button className={filter === value ? "active" : ""} key={value} onClick={() => setFilter(value)} type="button">{value === "all" ? "All" : typeLabel(value)}</button>)}</div>}{visible.length === 0 ? <div className="panel empty-panel min-h-[260px]"><ClipboardList size={30}/><span>No {filter === "all" ? "coursework" : typeLabel(filter).toLowerCase()} has been assigned.</span></div> : <div className="grid gap-4 xl:grid-cols-2">{visible.map((assignment) => { const record = submissions.find((item) => item.assignment_id === assignment.id); const status = record?.status || "not_started"; return <article className="panel p-5" key={assignment.id}><div className="flex items-start justify-between gap-4"><div className="flex flex-wrap gap-2"><span className={`tag ${assignmentCourse(assignment) === "JAVA" ? "cyan" : "amber"}`}>{assignmentCourse(assignment)}</span><span className="tag neutral">Unit {assignment.unit_number || 1}</span><span className="tag neutral">{assignment.work_mode?.toUpperCase() || typeLabel(assignmentType(assignment))}</span></div><span className="text-right text-xs text-[var(--muted)]"><strong className="block text-base text-[var(--ink)]">{record?.score ?? assignment.max_marks}</strong>{record?.score != null ? `/${assignment.max_marks}` : "marks"}</span></div><h3 className="mt-4 text-base font-semibold">{assignment.title}</h3><p className="mt-2 line-clamp-3 text-xs leading-5 text-[var(--muted)]">{assignment.description}</p><div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-4 text-xs text-[var(--muted)]"><span className="flex items-center gap-2"><CalendarDays size={15}/>Due {dueLabel(assignment.due_date)}</span><span className={`status-pill ${status === "submitted" || status === "graded" ? "on-track" : isPastDeadline(assignment.due_date) ? "at-risk" : "needs-attention"}`}>{status === "not_started" ? (isPastDeadline(assignment.due_date) ? "Closed" : "Not started") : status}</span></div><button className="primary-button mt-4 w-full" onClick={() => setActive(assignment)} type="button">{status === "submitted" || status === "graded" ? "View submission" : status === "draft" ? "Continue work" : "Open assignment"}</button></article>; })}</div>}</div>;
 }
-export function CourseworkManager({ session, initialType = "all", theme, onEvent }: {
+export function CourseworkManager({ session, initialType = "all", theme, courseFilter, onEvent }: {
     session: AuthSession;
     initialType?: CourseworkFilter;
     theme: "light" | "dark";
+    courseFilter?: string;
     onEvent: (event: ActivityLog) => void;
 }) {
     const workflowType: CourseworkType = initialType === "assessment" ? "assessment" : initialType === "lab" ? "lab" : "practice";
@@ -361,13 +363,22 @@ export function CourseworkManager({ session, initialType = "all", theme, onEvent
         setDuration(String(assignment.duration_minutes)); setAudience("selected"); setSelectedStudentIds(assignment.assigned_user_ids);
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
-    const updateSubmission = (record: LearningRecord) => setSubmissions((current) => [record, ...current.filter((item) => item.id !== record.id)]);
+
     const recipientCount = audience === "all" ? students.length : selectedStudentIds.length;
     const earliestDeadline = new Date().toISOString().slice(0, 10);
     if (loading)
         return <div className="panel empty-panel min-h-[320px]"><LoaderCircle className="animate-spin text-cyan-600" size={28}/><span>Loading coursework...</span></div>;
     if (!isFaculty)
-        return <StudentCoursework assignments={assignments} submissions={submissions} session={session} initialType={initialType} theme={theme} onEvent={onEvent} onSaved={updateSubmission}/>;
+        return (<StudentCoursework assignments={assignments} submissions={submissions} session={session} initialType={initialType} theme={theme} courseFilter={courseFilter} onEvent={onEvent} onSaved={(record) => {
+            setSubmissions((current) => {
+                const index = current.findIndex((item) => item.id === record.id || item.assignment_id === record.assignment_id);
+                if (index === -1)
+                    return [...current, record];
+                const updated = [...current];
+                updated[index] = record;
+                return updated;
+            });
+        }}/>);
     return (
         <div className="space-y-7">
             <section className="grid gap-3 sm:grid-cols-3">

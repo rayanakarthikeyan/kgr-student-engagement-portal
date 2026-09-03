@@ -7,6 +7,7 @@ import type { ActivityLog, LearningResource, SessionUser } from "../platform/typ
 interface ResourceViewerProps {
   user: SessionUser;
   resources: LearningResource[];
+  courseFilter?: string;
   onEvent: (event: ActivityLog) => void;
 }
 
@@ -50,10 +51,10 @@ function PdfPlayer({ user, resource, onEvent }: { user: SessionUser; resource: L
   return <div ref={containerRef}><div className="aspect-[16/10] overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--surface-2)]"><iframe className="h-full w-full bg-white" src={documentPreviewUrl(resource.externalUrl)} title={resource.title}/></div><div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--muted)]"><span className="flex items-center gap-2"><Clock3 size={14}/>{activeSeconds}s focused reading tracked while this document is visible</span><a className="secondary-button" href={resource.externalUrl} target="_blank" rel="noreferrer">Open in new tab<ExternalLink size={15}/></a></div></div>;
 }
 
-export function ResourceViewer({ user, resources, onEvent }: ResourceViewerProps) {
+export function ResourceViewer({ user, resources, courseFilter = "all", onEvent }: ResourceViewerProps) {
   const [selectedId, setSelectedId] = useState(resources[0]?.id || "");
-  const [courseFilter, setCourseFilter] = useState<"all" | "course-java" | "course-dbms">("all");
-  const filtered = useMemo(() => resources.filter((item) => courseFilter === "all" || item.courseId === courseFilter), [courseFilter, resources]);
+  const [activeCourseFilter, setActiveCourseFilter] = useState<"all" | "course-java" | "course-dbms">((courseFilter === "JAVA" ? "course-java" : courseFilter === "DBMS" ? "course-dbms" : "all") as "all" | "course-java" | "course-dbms");
+  const filtered = useMemo(() => resources.filter((item) => activeCourseFilter === "all" || item.courseId === activeCourseFilter), [activeCourseFilter, resources]);
   const selected = filtered.find((item) => item.id === selectedId) || filtered[0];
 
   if (!selected) return <div className="panel empty-panel min-h-[280px]"><BookOpen size={28}/><span>No theory resources have been assigned to you.</span></div>;
@@ -63,7 +64,7 @@ export function ResourceViewer({ user, resources, onEvent }: ResourceViewerProps
       <aside className="panel overflow-hidden">
         <div className="border-b border-[var(--line)] p-4">
           <div className="flex items-center justify-between"><div><h2 className="font-semibold">Assigned theory</h2><p className="mt-1 text-xs text-[var(--muted)]">{filtered.length} videos and readings</p></div><ListVideo size={19} className="text-cyan-500"/></div>
-          <div className="segmented-control mt-4 w-full">{[["all", "All"], ["course-java", "JAVA"], ["course-dbms", "DBMS"]].map(([id, label]) => <button className={`flex-1 ${courseFilter === id ? "active" : ""}`} key={id} onClick={() => setCourseFilter(id as typeof courseFilter)} type="button">{label}</button>)}</div>
+          <div className="segmented-control mt-4 w-full">{[["all", "All"], ["course-java", "JAVA"], ["course-dbms", "DBMS"]].map(([id, label]) => <button className={`flex-1 ${activeCourseFilter === id ? "active" : ""}`} key={id} onClick={() => setActiveCourseFilter(id as typeof activeCourseFilter)} type="button">{label}</button>)}</div>
         </div>
         <div className="max-h-[calc(100vh-250px)] space-y-1 overflow-y-auto p-2">
           {filtered.map((resource) => <button className={`resource-row ${selected.id === resource.id ? "active" : ""}`} key={resource.id} onClick={() => setSelectedId(resource.id)} type="button"><span className={`grid size-9 shrink-0 place-items-center rounded-md ${resource.type === "youtube" ? "bg-cyan-500/10 text-cyan-500" : "bg-amber-500/10 text-amber-500"}`}>{resource.type === "youtube" ? <Video size={17}/> : <FileText size={17}/>}</span><span className="min-w-0 flex-1 text-left"><strong>{resource.title}</strong><small>{resource.courseCode} / Unit {resource.unitNumber} · {resource.durationMinutes} min</small></span></button>)}

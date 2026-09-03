@@ -30,33 +30,44 @@ import { courses } from "./platform/demo";
 import { enrollInCourse, loadCoursework, loadStudentOverview, logActivity, restoreSession, saveSession, validateSession } from "./platform/api";
 import type { ActivityLog, AssignmentRecord, AuthSession, Enrollment, LearningRecord, LearningResource } from "./platform/types";
 
-type ViewId = "dashboard" | "learn" | "coursework" | "assessment" | "lab" | "resources" | "telemetry";
+type ViewId = "dashboard" | "java-learn" | "java-lab" | "dbms-learn" | "dbms-lab" | "coursework" | "assessment" | "resources" | "telemetry";
 type Theme = "light" | "dark";
 
-const studentNavigation = [
-  { id: "dashboard" as const, label: "Overview", icon: LayoutDashboard },
-  { id: "learn" as const, label: "Theory resources", icon: LibraryBig },
-  { id: "coursework" as const, label: "Practice", icon: ClipboardList },
-  { id: "assessment" as const, label: "Assessments", icon: ClipboardCheck },
-  { id: "lab" as const, label: "Lab work", icon: Braces },
+type NavItem = 
+  | { id: ViewId; label: string; icon: any }
+  | { isHeader: true; label: string };
+
+const studentNavigation: NavItem[] = [
+  { id: "dashboard", label: "Overview", icon: LayoutDashboard },
+  { isHeader: true, label: "OOP Java" },
+  { id: "java-learn", label: "Theory (5 Units)", icon: LibraryBig },
+  { id: "java-lab", label: "Lab (21 Exp)", icon: Braces },
+  { isHeader: true, label: "DBMS" },
+  { id: "dbms-learn", label: "Theory (5 Units)", icon: LibraryBig },
+  { id: "dbms-lab", label: "Lab (10 Exp)", icon: Braces },
+  { isHeader: true, label: "Practice & Exams" },
+  { id: "coursework", label: "Practice", icon: ClipboardList },
+  { id: "assessment", label: "Assessments", icon: ClipboardCheck },
 ];
 
-const facultyNavigation = [
-  { id: "dashboard" as const, label: "Overview", icon: LayoutDashboard },
-  { id: "resources" as const, label: "Theory resources", icon: FileStack },
-  { id: "coursework" as const, label: "Practice", icon: ClipboardList },
-  { id: "assessment" as const, label: "Assessments", icon: ClipboardCheck },
-  { id: "lab" as const, label: "Lab work", icon: Braces },
-  { id: "telemetry" as const, label: "Student insights", icon: BarChart3 },
+const facultyNavigation: NavItem[] = [
+  { id: "dashboard", label: "Overview", icon: LayoutDashboard },
+  { isHeader: true, label: "Course Management" },
+  { id: "resources", label: "Theory resources", icon: FileStack },
+  { id: "coursework", label: "Practice", icon: ClipboardList },
+  { id: "assessment", label: "Assessments", icon: ClipboardCheck },
+  { id: "telemetry", label: "Student insights", icon: BarChart3 },
 ];
 
 function pageTitle(view: ViewId) {
   const titles: Record<ViewId, [string, string]> = {
     dashboard: ["Learning command center", "Courses, progress, and next actions in one focused workspace."],
-    learn: ["Theory resources", "Study faculty-assigned videos and documents with transparent progress tracking."],
+    "java-learn": ["OOP Java: Theory", "Study faculty-assigned videos and documents organized across 5 units."],
+    "java-lab": ["OOP Java: Lab work", "Complete 21 official Java experiments in an instrumented coding workspace."],
+    "dbms-learn": ["DBMS: Theory", "Study faculty-assigned videos and documents organized across 5 units."],
+    "dbms-lab": ["DBMS: Lab work", "Complete 10 official DBMS experiments in an instrumented coding workspace."],
     coursework: ["Practice", "Complete non-proctored MCQs and IDE questions for JAVA and DBMS."],
     assessment: ["Assessment center", "Secure, timed checkpoints with autosave and integrity monitoring."],
-    lab: ["Lab work", "Complete official KGR25 experiments in an instrumented coding workspace."],
     resources: ["Theory resource manager", "Assign YouTube and Drive resources without consuming platform storage."],
     telemetry: ["Student insights", "Review study engagement, assessment integrity, and lab debugging behavior."],
   };
@@ -161,7 +172,7 @@ export default function App() {
           resources={learningResources}
           assignments={dashboardAssignments}
           submissions={dashboardSubmissions}
-          onNavigate={setView}
+          onNavigate={(view) => setView(view as ViewId)}
           onEnroll={async (courseId) => {
             await enrollInCourse(session.token, courseId);
             setEnrollments((current) => current.some((item) => item.courseId === courseId)
@@ -171,9 +182,11 @@ export default function App() {
         />
       ) : <FacultyAnalytics session={session} compact />;
     }
-    if (view === "learn") return <ResourceViewer user={session.user} resources={learningResources} onEvent={emitActivity} />;
+    if (view === "java-learn") return <ResourceViewer user={session.user} resources={learningResources} courseFilter="JAVA" onEvent={emitActivity} />;
+    if (view === "dbms-learn") return <ResourceViewer user={session.user} resources={learningResources} courseFilter="DBMS" onEvent={emitActivity} />;
     if (view === "coursework") return <CourseworkManager session={session} initialType="practice" theme={theme} onEvent={emitActivity} />;
-    if (view === "lab") return <CourseworkManager session={session} initialType="lab" theme={theme} onEvent={emitActivity} />;
+    if (view === "java-lab") return <CourseworkManager session={session} initialType="lab" courseFilter="JAVA" theme={theme} onEvent={emitActivity} />;
+    if (view === "dbms-lab") return <CourseworkManager session={session} initialType="lab" courseFilter="DBMS" theme={theme} onEvent={emitActivity} />;
     if (view === "resources") return <FacultyResourceManager token={session.token} resources={learningResources} onChange={setLearningResources} />;
     if (view === "telemetry") return <FacultyAnalytics session={session} />;
     return <CourseworkManager session={session} initialType="assessment" theme={theme} onEvent={emitActivity} />;
@@ -200,7 +213,10 @@ export default function App() {
 
         <nav className="mt-9 space-y-1" aria-label="Primary navigation">
           <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--muted)]">Workspace</p>
-          {navigation.map((item) => {
+          {navigation.map((item, i) => {
+            if ("isHeader" in item) {
+              return <p key={`header-${i}`} className="mb-2 mt-4 px-3 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--muted)]">{item.label}</p>;
+            }
             const Icon = item.icon;
             return (
               <button

@@ -38,6 +38,16 @@ export interface AuthSession {
   user: SessionUser;
 }
 
+export interface Unit {
+  number: number;
+  title: string;
+}
+
+export interface Experiment {
+  number: number;
+  title: string;
+}
+
 export interface Course {
   id: string;
   code: CourseCode;
@@ -46,6 +56,8 @@ export interface Course {
   accent: "cyan" | "amber";
   faculty: string;
   enrolled: number;
+  units: Unit[];
+  experiments: Experiment[];
 }
 
 export interface Enrollment {
