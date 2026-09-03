@@ -47,56 +47,26 @@ const navigation: { id: ViewId; label: string; icon: React.ElementType }[] = [
 ];
 
 const analytics = [
-  ["Assignment completion", 68],
-  ["Lab task completion", 54],
-  ["Quiz performance", 72],
-  ["Resource usage", 81],
-  ["Resolved doubts", 63],
-  ["AI dependency awareness", 38],
+  ["Assignment completion", 0],
+  ["Lab task completion", 0],
+  ["Quiz performance", 0],
+  ["Resource usage", 0],
+  ["Resolved doubts", 0],
+  ["AI dependency awareness", 0],
 ] as const;
 
-const assignmentCards = [
-  {
-    title: "DBMS Lab 5: SQL Joins Practice",
-    subject: "Database Management Systems",
-    due: "2026-08-25",
-    assigned: 64,
-    submitted: 46,
-    pending: 18,
-    reviewed: 31,
-    progress: 72,
-  },
-  {
-    title: "OS Practice 4: Deadlock Scenarios",
-    subject: "Operating Systems",
-    due: "2026-08-26",
-    assigned: 58,
-    submitted: 39,
-    pending: 19,
-    reviewed: 28,
-    progress: 67,
-  },
-  {
-    title: "Python Lab 3: File Upload Experiment",
-    subject: "Python Programming Lab",
-    due: "2026-08-30",
-    assigned: 42,
-    submitted: 35,
-    pending: 7,
-    reviewed: 29,
-    progress: 83,
-  },
-  {
-    title: "Networks Task: Socket Programming",
-    subject: "Computer Networks",
-    due: "2026-08-28",
-    assigned: 71,
-    submitted: 33,
-    pending: 38,
-    reviewed: 21,
-    progress: 46,
-  },
-];
+interface AssignmentCardData {
+  title: string;
+  subject: string;
+  due: string;
+  assigned: number;
+  submitted: number;
+  pending: number;
+  reviewed: number;
+  progress: number;
+}
+
+const assignmentCards: AssignmentCardData[] = [];
 
 function badgeClass(value: SubjectType | Subject["risk"] | string) {
   if (value === "Lab Only") return "lab";
@@ -107,15 +77,13 @@ function badgeClass(value: SubjectType | Subject["risk"] | string) {
 }
 
 function LoginScreen({ onLogin }: { onLogin: (role: RoleId, name?: string) => void }) {
-  const [email, setEmail] = useState("umashankar@kgr.ac.in");
-  const [password, setPassword] = useState("123dskgr");
+  const [email, setEmail] = useState("admin@kgr.ac.in");
+  const [password, setPassword] = useState("admin123");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const credentials: Record<string, { password: string; role: RoleId }> = {
     "admin@kgr.ac.in": { password: "admin123", role: "admin" },
-    "umashankar@kgr.ac.in": { password: "123dskgr", role: "faculty" },
-    "karthikeyan@kgr.ac.in": { password: "password123", role: "student" },
   };
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -267,22 +235,22 @@ function AnalyticsBars() {
 function PortalKpis({ role }: { role: RoleId }) {
   const values = {
     admin: [
-      ["Active Classrooms", "412", "Current academic year", BookOpen],
-      ["Enrolled Students", "4,820", "Across departments", UsersIcon],
-      ["Submitted", "1,184", "Learning activities", ClipboardList],
-      ["Avg AI Engagement", "29%", "All active classrooms", Activity],
+      ["Active Classrooms", "0", "Create classrooms", BookOpen],
+      ["Enrolled Students", "0", "Create student accounts", UsersIcon],
+      ["Submitted", "0", "No submissions yet", ClipboardList],
+      ["Avg AI Engagement", "0%", "No AI usage yet", Activity],
     ],
     faculty: [
-      ["Active Tasks", "11", "Due this week", ClipboardList],
-      ["Enrolled Students", "286", "Assigned classrooms", UsersIcon],
-      ["Submitted", "96", "Awaiting review", FileText],
-      ["Avg AI Engagement", "29%", "All assigned rows", Activity],
+      ["Active Tasks", "0", "No tasks yet", ClipboardList],
+      ["Enrolled Students", "0", "No students yet", UsersIcon],
+      ["Submitted", "0", "No submissions yet", FileText],
+      ["Avg AI Engagement", "0%", "No AI usage yet", Activity],
     ],
     student: [
-      ["Pending Work", "8", "Assignments and lab tasks", ClipboardList],
-      ["Enrolled Subjects", "7", "Theory, lab, mixed", BookOpen],
-      ["Submitted", "26", "This semester", FileText],
-      ["Practice Growth", "18%", "Recent improvement", Activity],
+      ["Pending Work", "0", "No tasks yet", ClipboardList],
+      ["Enrolled Subjects", "0", "No subjects yet", BookOpen],
+      ["Submitted", "0", "No submissions yet", FileText],
+      ["Practice Growth", "0%", "No practice data yet", Activity],
     ],
   } as const;
 
@@ -309,7 +277,7 @@ function UsersIcon({ size = 24 }: { size?: number }) {
 }
 
 function AssignmentWorkbench({ role }: { role: RoleId }) {
-  const [selectedAssignment, setSelectedAssignment] = useState(assignmentCards[0]);
+  const [selectedAssignment, setSelectedAssignment] = useState<AssignmentCardData | null>(assignmentCards[0] ?? null);
   const [localQuery, setLocalQuery] = useState("");
   const filtered = assignmentCards.filter((item) => item.title.toLowerCase().includes(localQuery.toLowerCase()));
 
@@ -328,9 +296,15 @@ function AssignmentWorkbench({ role }: { role: RoleId }) {
           <input value={localQuery} type="search" placeholder="Search assignments..." onChange={(event) => setLocalQuery(event.target.value)} />
         </label>
         <div className="assignment-list">
+          {filtered.length === 0 && (
+            <div className="empty-state">
+              <h3>No activities yet</h3>
+              <p>Create the first assignment, quiz, or lab task after setting up subjects and classrooms.</p>
+            </div>
+          )}
           {filtered.map((assignment) => (
             <button
-              className={`assignment-card ${selectedAssignment.title === assignment.title ? "selected" : ""}`}
+              className={`assignment-card ${selectedAssignment?.title === assignment.title ? "selected" : ""}`}
               type="button"
               key={assignment.title}
               onClick={() => setSelectedAssignment(assignment)}
@@ -371,34 +345,46 @@ function AssignmentWorkbench({ role }: { role: RoleId }) {
 
       <article className="submission-panel">
         <p className="eyebrow">Submission workspace</p>
-        <h2>{selectedAssignment.title}</h2>
-        <p>
-          Review submissions, feedback, weak topics, AI assistance patterns, and pending students for this learning
-          activity.
-        </p>
-        <select aria-label="Choose assignment">
-          {assignmentCards.map((assignment) => (
-            <option key={assignment.title}>{assignment.title} with {assignment.submitted} submissions</option>
-          ))}
-        </select>
-        <div className="submission-summary">
-          <div>
-            <strong>{selectedAssignment.submitted}</strong>
-            <span>Submitted</span>
+        {selectedAssignment ? (
+          <>
+            <h2>{selectedAssignment.title}</h2>
+            <p>
+              Review submissions, feedback, weak topics, AI assistance patterns, and pending students for this learning
+              activity.
+            </p>
+            <select aria-label="Choose assignment">
+              {assignmentCards.map((assignment) => (
+                <option key={assignment.title}>{assignment.title} with {assignment.submitted} submissions</option>
+              ))}
+            </select>
+            <div className="submission-summary">
+              <div>
+                <strong>{selectedAssignment.submitted}</strong>
+                <span>Submitted</span>
+              </div>
+              <div>
+                <strong>{selectedAssignment.pending}</strong>
+                <span>Pending</span>
+              </div>
+              <div>
+                <strong>{selectedAssignment.reviewed}</strong>
+                <span>Reviewed</span>
+              </div>
+              <div>
+                <strong>{selectedAssignment.progress}%</strong>
+                <span>Completion</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="empty-state large">
+            <h2>Select or create an activity</h2>
+            <p>No assignments, lab tasks, quizzes, or practice tests have been created yet.</p>
+            <button className="button" type="button">
+              Create activity
+            </button>
           </div>
-          <div>
-            <strong>{selectedAssignment.pending}</strong>
-            <span>Pending</span>
-          </div>
-          <div>
-            <strong>{selectedAssignment.reviewed}</strong>
-            <span>Reviewed</span>
-          </div>
-          <div>
-            <strong>{selectedAssignment.progress}%</strong>
-            <span>Completion</span>
-          </div>
-        </div>
+        )}
       </article>
     </section>
   );
@@ -445,6 +431,35 @@ function Workspace({
   onOpen: (subject: Subject) => void;
 }) {
   const subject = subjects[selectedSubject];
+  if (!subject) {
+    return (
+      <section className="workspace-layout">
+        <article className="panel">
+          <div className="panel-header">
+            <div>
+              <h2>{role === "admin" ? "Academic Setup" : "Subject Workspaces"}</h2>
+              <p>Supports theory-only, lab-only, and theory-plus-lab classrooms.</p>
+            </div>
+          </div>
+          <div className="empty-state">
+            <h3>No subjects yet</h3>
+            <p>Create departments, semesters, subjects, and classrooms to begin.</p>
+          </div>
+        </article>
+
+        <article className="panel">
+          <div className="empty-state large">
+            <h2>No workspace selected</h2>
+            <p>Subject workspaces will appear here after Super Admin creates academic setup data.</p>
+            <button className="button" type="button">
+              Create subject
+            </button>
+          </div>
+        </article>
+      </section>
+    );
+  }
+
   return (
     <section className="workspace-layout">
       <article className="panel">
@@ -529,6 +544,12 @@ function Resources({ role }: { role: RoleId }) {
       </div>
       <FilterBar role={role} />
       <div className="list-stack">
+        {resources.length === 0 && (
+          <div className="empty-state">
+            <h3>No resources yet</h3>
+            <p>Uploaded PDFs, PPTs, links, videos, datasets, and starter files will appear here.</p>
+          </div>
+        )}
         {resources.map(([name, type, place, status, usage]) => (
           <div className="list-row" key={name}>
             <div>
@@ -573,6 +594,16 @@ function Activities({ role }: { role: RoleId }) {
             </tr>
           </thead>
           <tbody>
+            {activities.length === 0 && (
+              <tr>
+                <td colSpan={6}>
+                  <div className="empty-state">
+                    <h3>No activities yet</h3>
+                    <p>Assignments, quizzes, lab tasks, and practice tests will appear here.</p>
+                  </div>
+                </td>
+              </tr>
+            )}
             {activities.map(([name, type, subject, due, status, evaluation]) => (
               <tr key={name}>
                 <td data-label="Activity">
@@ -608,6 +639,12 @@ function Engagement({ role }: { role: RoleId }) {
           </button>
         </div>
         <div className="list-stack">
+          {doubts.length === 0 && (
+            <div className="empty-state">
+              <h3>No doubts or discussions yet</h3>
+              <p>Student doubts, class discussions, and announcements will appear here.</p>
+            </div>
+          )}
           {doubts.map(([title, subject, followers, status]) => (
             <div className="list-row" key={title}>
               <div>
@@ -623,7 +660,7 @@ function Engagement({ role }: { role: RoleId }) {
       </article>
       <aside className="panel">
         <h2>Common Doubt Summary</h2>
-        <p>Most repeated questions are clustered around SQL joins, deadlock prevention, subnetting practice, and lab environment setup.</p>
+        <p>Common doubt clusters will appear after students begin asking questions.</p>
         <textarea aria-label="Private feedback note" placeholder="Write private feedback or a discussion response..." />
         <div className="actions">
           <button className="button" type="button">
@@ -656,6 +693,12 @@ function Analytics({ role }: { role: RoleId }) {
           <h2>Student Learning Profiles</h2>
           <p>Submitted activities, pending tasks, feedback history, doubts, weak topics, improvement trend, and private notes.</p>
           <div className="profile-grid">
+            {studentProfiles.length === 0 && (
+              <div className="empty-state">
+                <h3>No student profiles yet</h3>
+                <p>Learning profiles will appear after students are enrolled and begin activities.</p>
+              </div>
+            )}
             {studentProfiles.map(([name, section, subject, progress, weak, trend]) => (
               <div className="profile-card" key={name}>
                 <h3>{name}</h3>
