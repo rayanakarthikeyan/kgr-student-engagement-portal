@@ -3,6 +3,9 @@ import { createServer } from "node:http";
 import health from "../api/health.js";
 import login from "../api/login.js";
 import summary from "../api/summary.js";
+import users from "../api/users.js";
+import subjects from "../api/subjects.js";
+import assignments from "../api/assignments.js";
 
 const HOST = process.env.HOST ?? "127.0.0.1";
 const PORT = Number(process.env.PORT ?? 8787);
@@ -11,6 +14,9 @@ const routes = {
   "/api/health": health,
   "/api/login": login,
   "/api/summary": summary,
+  "/api/users": users,
+  "/api/subjects": subjects,
+  "/api/assignments": assignments,
 };
 
 async function readBody(request) {
