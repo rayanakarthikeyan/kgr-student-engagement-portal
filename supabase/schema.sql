@@ -349,5 +349,5 @@ CREATE INDEX IF NOT EXISTS course_cohorts_course_idx ON public.course_cohorts (c
 ALTER TABLE public.course_cohorts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Course cohorts are viewable by everyone" ON public.course_cohorts FOR SELECT USING (true);
 CREATE POLICY "Only faculty can insert cohorts" ON public.course_cohorts FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('faculty', 'admin'))
+    EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::text AND role IN ('faculty', 'admin'))
 );
