@@ -178,14 +178,56 @@ export function AuthScreen({
             </p>
 
             <form className="mt-8 space-y-5" onSubmit={submit}>
+              {error && (
+                <div className="auth-error flex items-start gap-2 rounded-lg border px-3 py-3 text-sm">
+                  <CircleAlert size={17} className="mt-0.5 shrink-0" />
+                  {error}
+                </div>
+              )}
               {registering && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="auth-label sm:col-span-2">
-                    College
-                    <span className="mt-2 block rounded-md border border-[var(--line)] bg-[var(--surface)] p-3 text-sm leading-5 text-[var(--ink)]">
-                      KG Reddy College of Engineering and Technology
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <label className="auth-label">
+                    Full name
+                    <span className="auth-input">
+                      <UserRound size={18} />
+                      <input
+                        required
+                        value={form.name}
+                        onChange={(e) => update("name", e.target.value)}
+                        placeholder="Aarav Mehta"
+                      />
                     </span>
                   </label>
+                  <label className="auth-label">
+                    Roll number
+                    <span className="auth-input">
+                      <BookOpenCheck size={18} />
+                      <input
+                        required
+                        value={form.rollNumber}
+                        onChange={(e) => update("rollNumber", e.target.value)}
+                        placeholder="22CSE041"
+                      />
+                    </span>
+                  </label>
+                </div>
+              )}
+              <label className="auth-label">
+                Email address
+                <span className="auth-input">
+                  <Mail size={18} />
+                  <input
+                    autoComplete="email"
+                    required
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => update("email", e.target.value)}
+                    placeholder="name@kgr.ac.in"
+                  />
+                </span>
+              </label>
+              {registering && (
+                <div className="grid gap-4 sm:grid-cols-2">
                   <label className="auth-label sm:col-span-2">
                     Contact number
                     <span className="auth-input">
@@ -248,56 +290,14 @@ export function AuthScreen({
                       ))}
                     </select>
                   </label>
-                </div>
-              )}
-              {error && (
-                <div className="auth-error flex items-start gap-2 rounded-lg border px-3 py-3 text-sm">
-                  <CircleAlert size={17} className="mt-0.5 shrink-0" />
-                  {error}
-                </div>
-              )}
-              {registering && (
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <label className="auth-label">
-                    Full name
-                    <span className="auth-input">
-                      <UserRound size={18} />
-                      <input
-                        required
-                        value={form.name}
-                        onChange={(e) => update("name", e.target.value)}
-                        placeholder="Aarav Mehta"
-                      />
-                    </span>
-                  </label>
-                  <label className="auth-label">
-                    Roll number
-                    <span className="auth-input">
-                      <BookOpenCheck size={18} />
-                      <input
-                        required
-                        value={form.rollNumber}
-                        onChange={(e) => update("rollNumber", e.target.value)}
-                        placeholder="22CSE041"
-                      />
+                  <label className="auth-label sm:col-span-2">
+                    College
+                    <span className="mt-2 block rounded-md border border-[var(--line)] bg-[var(--surface)] p-3 text-sm leading-5 text-[var(--ink)]">
+                      KG Reddy College of Engineering and Technology
                     </span>
                   </label>
                 </div>
               )}
-              <label className="auth-label">
-                Email address
-                <span className="auth-input">
-                  <Mail size={18} />
-                  <input
-                    autoComplete="email"
-                    required
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => update("email", e.target.value)}
-                    placeholder="name@kgr.ac.in"
-                  />
-                </span>
-              </label>
               <label className="auth-label">
                 Password
                 <span className="auth-input">

@@ -1,13 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
-import register from "../api/register.js";
-import login from "../api/login.js";
-import assignments from "../api/assignments.js";
-import users from "../api/users.js";
-import platform from "../api/platform.js";
-import learning from "../api/learning.js";
-import runner from "../api/code-runner.js";
+import register from "../api/_register.js";
+import login from "../api/_login.js";
+import assignments from "../api/_assignments.js";
+import users from "../api/_users.js";
+import platform from "../api/_platform.js";
+import learning from "../api/_learning.js";
+import runner from "../api/_code-runner.js";
 import { activityTemplates } from "../server/curriculum-templates.js";
 import { createSupabaseClient, hashPassword } from "../api/_shared.js";
 process.env.LOCAL_API_SEED_PATH = fileURLToPath(new URL("../server/db.seed.json", import.meta.url));
@@ -21,7 +21,7 @@ async function call(handler, method = "GET", body = {}, token = "", query = {}) 
   });
   return { status, ...result };
 }
-const profile = { name: "Test Student", email: "test-profile@example.invalid", rollNumber: "TEST2026001", contactNumber: "9876543210", department: "CSE", section: "A", password: "Test-only-password-123" };
+const profile = { name: "Test Student", email: "test-profile@example.invalid", rollNumber: "TEST2026001", contactNumber: "9876543210", department: "CSE", year: "2", section: "A", password: "Test-only-password-123" };
 
 test("catalog has all syllabus labs and editable examples for every theory unit", () => {
   assert.equal(Object.keys(activityTemplates).length, 41);
@@ -72,7 +72,7 @@ test("registration, publication gate, editing, filtering and grading", async () 
   const questions = activityTemplates["java-theory-1"].questions;
   const payload = { title: "Java practice", subjectId: "sub-java-cse-a", dueDate: "2099-12-31", maxMarks: 99, description: "Practice task", workMode: "mcq", questions, assignedUserIds: [student.user.id], assignmentType: "practice", courseCode: "JAVA", unitNumber: 1, curriculumItemId: "java-theory-1", assigned: 1, hints: ["Try reasoning first"] };
   assert.equal((await call(assignments, "POST", payload, student.token)).status, 403);
-  assert.equal((await call(assignments, "POST", { ...payload, assignedUserIds: [] }, faculty.token)).status, 400);
+  assert.equal((await call(assignments, "POST", { ...payload, dueDate: "invalid" }, faculty.token)).status, 400);
   assert.equal((await call(assignments, "POST", { ...payload, questions: [{ ...questions[0], correctIndex: 9 }] }, faculty.token)).status, 400);
   const created = await call(assignments, "POST", payload, faculty.token);
   assert.equal(created.status, 201, JSON.stringify(created));
