@@ -329,6 +329,21 @@ export default function App() {
   const navigation = session?.user.role === "admin" ? adminNavigation : (isStudent ? studentNavigation : facultyNavigation);
   const [title, subtitle] = pageTitle(view);
 
+  const visibleResources = useMemo(() => {
+    if (!isStudent) return learningResources;
+    const visibleIds = visibleCourses.map((c) => c.id);
+    return learningResources.filter((r) => visibleIds.includes(r.courseId));
+  }, [learningResources, visibleCourses, isStudent]);
+
+  const visibleAssignments = useMemo(() => {
+    if (!isStudent) return dashboardAssignments;
+    const visibleCodes = visibleCourses.map((c) => c.code as string);
+    return dashboardAssignments.filter((a) => {
+      const code = a.course_code || a.subjects?.id || "";
+      return visibleCodes.some(vc => code.toLowerCase().includes(vc.toLowerCase()));
+    });
+  }, [dashboardAssignments, visibleCourses, isStudent]);
+
   const content = useMemo(() => {
     if (!session) return null;
     if (view === "admin-dashboard") return <SuperAdminDashboard token={session.token} />;
@@ -338,8 +353,8 @@ export default function App() {
           user={session.user}
           courses={visibleCourses}
           enrollments={enrollments}
-          resources={learningResources}
-          assignments={dashboardAssignments}
+          resources={visibleResources}
+          assignments={visibleAssignments}
           submissions={dashboardSubmissions}
           onNavigate={(view) => setView(view as ViewId)}
           onEnroll={async (courseId) => {
@@ -379,7 +394,7 @@ export default function App() {
       return (
         <ResourceViewer
           user={session.user}
-          resources={learningResources}
+          resources={visibleResources}
           courseFilter="DBMS"
           onEvent={emitActivity}
         />
@@ -388,6 +403,8 @@ export default function App() {
       return (
         <CourseworkManager
           session={session}
+          assignments={visibleAssignments}
+          submissions={dashboardSubmissions}
           initialType="practice"
           theme={theme}
           onEvent={emitActivity}
@@ -397,6 +414,8 @@ export default function App() {
       return (
         <CourseworkManager
           session={session}
+          assignments={visibleAssignments}
+          submissions={dashboardSubmissions}
           initialType="lab"
           courseFilter="JAVA"
           theme={theme}
@@ -407,6 +426,8 @@ export default function App() {
       return (
         <CourseworkManager
           session={session}
+          assignments={visibleAssignments}
+          submissions={dashboardSubmissions}
           initialType="lab"
           courseFilter="DBMS"
           theme={theme}
@@ -419,7 +440,7 @@ export default function App() {
       return (
         <FacultyResourceManager
           token={session.token}
-          resources={learningResources}
+          resources={visibleResources}
           onChange={setLearningResources}
         />
       );
@@ -429,21 +450,24 @@ export default function App() {
     return (
       <CourseworkManager
         session={session}
+        assignments={visibleAssignments}
+        submissions={dashboardSubmissions}
         initialType="assessment"
         theme={theme}
         onEvent={emitActivity}
       />
     );
   }, [
-    dashboardAssignments,
+    visibleAssignments,
     dashboardSubmissions,
     emitActivity,
     enrollments,
     isStudent,
-    learningResources,
+    visibleResources,
     session,
     theme,
     view,
+    visibleCourses,
   ]);
 
   if (checkingSession)

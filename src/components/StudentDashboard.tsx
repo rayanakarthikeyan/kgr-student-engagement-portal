@@ -97,7 +97,7 @@ export function StudentDashboard({
           </h2>
           <p className="mt-2 text-sm text-[var(--muted)]">
             {assignments.length
-              ? `You have ${assignments.length} assigned item${assignments.length === 1 ? "" : "s"} across JAVA and DBMS.`
+              ? `You have ${assignments.length} assigned item${assignments.length === 1 ? "" : "s"} to complete.`
               : "Your courses are enrolled. Faculty-published work will appear here."}
           </p>
         </div>
@@ -168,9 +168,9 @@ export function StudentDashboard({
           <div className="section-heading">
             <div>
               <h2>Your courses</h2>
-              <p>OOP through Java and DBMS / Theory + Lab</p>
+              <p>Active learning pathways / Theory + Lab</p>
             </div>
-            <span>{enrollments.length} enrolled</span>
+            <span>{courses.length} published</span>
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             {courses.map((course, index) => {

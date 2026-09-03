@@ -722,6 +722,12 @@ function StudentCoursework({
   );
   const [unitFilter, setUnitFilter] = useState("");
   const [active, setActive] = useState<AssignmentRecord | null>(null);
+
+  const availableCourseCodes = useMemo(
+    () => Array.from(new Set(assignments.map(assignmentCourse))),
+    [assignments]
+  );
+
   const visible = useMemo(
     () =>
       assignments.filter(
@@ -786,9 +792,13 @@ function StudentCoursework({
             value={courseFilterState}
             onChange={(event) => setCourseFilterState(event.target.value)}
           >
-            <option value="">Both courses</option>
-            <option value="JAVA">OOP through Java</option>
-            <option value="DBMS">DBMS</option>
+            <option value="">All courses</option>
+            {availableCourseCodes.includes("JAVA") && (
+              <option value="JAVA">OOP through Java</option>
+            )}
+            {availableCourseCodes.includes("DBMS") && (
+              <option value="DBMS">DBMS</option>
+            )}
           </select>
         </label>
         <label className="text-xs">
@@ -905,12 +915,16 @@ function StudentCoursework({
 }
 export function CourseworkManager({
   session,
+  assignments: initialAssignments,
+  submissions: initialSubmissions,
   initialType = "all",
   theme,
   courseFilter,
   onEvent,
 }: {
   session: AuthSession;
+  assignments?: AssignmentRecord[];
+  submissions?: LearningRecord[];
   initialType?: CourseworkFilter;
   theme: "light" | "dark";
   courseFilter?: string;
@@ -926,8 +940,8 @@ export function CourseworkManager({
   const initialItem =
     curriculumCatalog.find((item) => item.track === requiredTrack) ||
     curriculumCatalog[0];
-  const [assignments, setAssignments] = useState<AssignmentRecord[]>([]);
-  const [submissions, setSubmissions] = useState<LearningRecord[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentRecord[]>(initialAssignments || []);
+  const [submissions, setSubmissions] = useState<LearningRecord[]>(initialSubmissions || []);
   const [subjects, setSubjects] = useState<AssignmentSubject[]>([]);
   const [students, setStudents] = useState<SessionUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -999,6 +1013,10 @@ export function CourseworkManager({
   const renderedStudents = filteredStudents.slice(0, 100);
   useEffect(() => {
     let active = true;
+    if (initialAssignments && initialSubmissions && !isFaculty) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     void Promise.all([
       loadCoursework(session.token, isFaculty),
@@ -1031,7 +1049,7 @@ export function CourseworkManager({
     return () => {
       active = false;
     };
-  }, [initialItem, isFaculty, session.token]);
+  }, [initialItem, isFaculty, session.token, initialAssignments, initialSubmissions]);
   const applyTemplate = (item: CurriculumItem, template: ActivityTemplate) => {
     setDescription(
       item.brief +

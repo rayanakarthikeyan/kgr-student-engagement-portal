@@ -142,12 +142,17 @@ export function ResourceViewer({
   onEvent,
 }: ResourceViewerProps) {
   const [selectedId, setSelectedId] = useState(resources[0]?.id || "");
+  const availableCourseCodes = useMemo(
+    () => Array.from(new Set(resources.map((r) => r.courseCode))),
+    [resources]
+  );
+
   const [activeCourseFilter, setActiveCourseFilter] = useState<
     "all" | "course-java" | "course-dbms"
   >(
-    (courseFilter === "JAVA"
+    (courseFilter === "JAVA" && availableCourseCodes.includes("JAVA")
       ? "course-java"
-      : courseFilter === "DBMS"
+      : courseFilter === "DBMS" && availableCourseCodes.includes("DBMS")
         ? "course-dbms"
         : "all") as "all" | "course-java" | "course-dbms",
   );
@@ -185,9 +190,9 @@ export function ResourceViewer({
           </div>
           <div className="segmented-control mt-4 w-full">
             {[
-              ["all", "All"],
-              ["course-java", "JAVA"],
-              ["course-dbms", "DBMS"],
+              ["all", "All"] as const,
+              ...(availableCourseCodes.includes("JAVA") ? [["course-java", "JAVA"] as const] : []),
+              ...(availableCourseCodes.includes("DBMS") ? [["course-dbms", "DBMS"] as const] : []),
             ].map(([id, label]) => (
               <button
                 className={`flex-1 ${activeCourseFilter === id ? "active" : ""}`}

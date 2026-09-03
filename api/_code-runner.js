@@ -28,26 +28,59 @@ export default async function handler(req, res) {
       return res.status(413).json({ error: "Runner input is too large" });
 
     if (process.env.CODE_RUNNER_URL) {
-      const response = await fetch(process.env.CODE_RUNNER_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(process.env.CODE_RUNNER_TOKEN
-            ? { Authorization: `Bearer ${process.env.CODE_RUNNER_TOKEN}` }
-            : {}),
-        },
-        body: JSON.stringify({
+      const isPiston = process.env.CODE_RUNNER_URL.includes("piston");
+      
+      let requestBody, headers;
+      if (isPiston) {
+        requestBody = JSON.stringify({
+          language: language === "sql" ? "sqlite3" : language,
+          version: "*",
+          files: [{ content: code }],
+          stdin: stdin || "",
+        });
+        headers = { "Content-Type": "application/json" };
+      } else {
+        requestBody = JSON.stringify({
           language,
           code,
           stdin,
           timeoutMs: 5000,
           memoryMb: 256,
-        }),
+        });
+        headers = {
+          "Content-Type": "application/json",
+          ...(process.env.CODE_RUNNER_TOKEN
+            ? { Authorization: `Bearer ${process.env.CODE_RUNNER_TOKEN}` }
+            : {}),
+        };
+      }
+
+      const response = await fetch(process.env.CODE_RUNNER_URL, {
+        method: "POST",
+        headers,
+        body: requestBody,
         signal: AbortSignal.timeout(8000),
       });
-      if (!response.ok)
-        throw new Error("The isolated code runner rejected the request");
-      return res.status(200).json(await response.json());
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => "No response body");
+        throw new Error(`The isolated code runner rejected the request. Details: ${errText}`);
+      }
+
+      const responseData = await response.json();
+      
+      if (isPiston) {
+        const runCode = responseData.run?.code ?? 0;
+        const compileCode = responseData.compile?.code ?? 0;
+        return res.status(200).json({
+          status: (runCode === 0 && compileCode === 0) ? "passed" : "error",
+          stdout: responseData.run?.stdout || "",
+          stderr: responseData.run?.stderr || responseData.compile?.stderr || "",
+          durationMs: 0
+        });
+      }
+
+      return res.status(200).json(responseData);
     }
 
     return res
