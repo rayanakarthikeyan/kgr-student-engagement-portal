@@ -3,17 +3,25 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as dotenv from "dotenv";
 
-// Load environment variables from .env
+// Load local Vercel env first, then fallback project env.
+dotenv.config({ path: ".env.local" });
 dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.SUPABASE_SECRET_KEY;
+const hasPulledSensitivePlaceholder = [supabaseUrl, supabaseKey].some((value) => value === "[SENSITIVE]");
 
 if (!supabaseUrl || !supabaseKey) {
   console.error("Missing Supabase environment variables in .env");
   console.error("Required: SUPABASE_URL or VITE_SUPABASE_URL, plus SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY");
+  process.exit(1);
+}
+
+if (hasPulledSensitivePlaceholder) {
+  console.error("Vercel pulled sensitive environment variables as [SENSITIVE] placeholders.");
+  console.error("For local seeding, create a local .env file with real Supabase values, or run the seed from an environment that has plaintext secrets.");
   process.exit(1);
 }
 
