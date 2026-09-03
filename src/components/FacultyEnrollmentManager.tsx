@@ -6,15 +6,13 @@ import {
   GraduationCap,
   LoaderCircle,
   Plus,
-  Search,
   Trash2,
   UserRoundCheck,
   Users,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { assignCourseToStudents, loadCoursework } from "../platform/api";
-import { CohortFilters, matchesCohort } from "./CohortFilters";
+import { publishCourseToCohort } from "../platform/api";
 import { courses as defaultCourses } from "../platform/demo";
 import type { SessionUser } from "../platform/types";
 
@@ -36,12 +34,10 @@ export function FacultyEnrollmentManager({
     title: "",
   });
 
-  const [students, setStudents] = useState<SessionUser[]>([]);
-  const [studentQuery, setStudentQuery] = useState("");
   const [department, setDepartment] = useState("");
-  const [section, setSection] = useState("");
-  const [audience, setAudience] = useState<"all" | "selected">("all");
-  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [year, setYear] = useState("");
+  const [sections, setSections] = useState<string[]>([]);
+  const [audience, setAudience] = useState<"all" | "cohort">("all");
   const [notice, setNotice] = useState("");
   const [publishing, setPublishing] = useState(false);
 
@@ -50,42 +46,24 @@ export function FacultyEnrollmentManager({
     Array<{
       id: string;
       courseId: string;
-      assignedUserIds: string[];
+      target: {
+        audience: "all" | "cohort";
+        department?: string;
+        year?: string;
+        sections?: string[];
+      };
       createdAt: string;
     }>
   >([]);
 
-  const filteredStudents = students.filter((student) =>
-    matchesCohort(student, studentQuery, department, section),
-  );
-  const renderedStudents = filteredStudents.slice(0, 100);
-  const recipientCount =
-    audience === "all" ? students.length : selectedStudentIds.length;
-
   useEffect(() => {
-    let active = true;
-    void loadCoursework(session.token, true)
-      .then((coursework) => {
-        if (!active) return;
-        setStudents(coursework.students);
-      })
-      .catch((error) => {
-        if (active)
-          setNotice(
-            error instanceof Error
-              ? error.message
-              : "Student data could not be loaded",
-          );
-      });
-    return () => {
-      active = false;
-    };
+    // In a real app we might fetch existing published courses here
   }, [session.token]);
 
   const publish = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (recipientCount === 0) {
-      setNotice("Register or select at least one student before publishing.");
+    if (audience === "cohort" && !department && !year && sections.length === 0) {
+      setNotice("Please select at least one cohort criteria (Department, Year, or Section).");
       return;
     }
 
@@ -117,27 +95,27 @@ export function FacultyEnrollmentManager({
     setPublishing(true);
     setNotice("");
     try {
-      const assignedIds =
-        audience === "all"
-          ? students.map((student) => student.id)
-          : selectedStudentIds;
+      const target = {
+        audience,
+        department,
+        year,
+        sections,
+      };
 
-      await assignCourseToStudents(session.token, courseIdToAssign, assignedIds);
+      await publishCourseToCohort(session.token, courseIdToAssign, target);
 
       setPublishedEnrollments((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           courseId: courseIdToAssign,
-          assignedUserIds: assignedIds,
+          target,
           createdAt: new Date().toISOString().slice(0, 10),
         },
       ]);
 
       setShowForm(false);
-      setNotice(
-        `Course assigned to ${recipientCount} student${recipientCount === 1 ? "" : "s"}.`,
-      );
+      setNotice(`Course published successfully to target audience.`);
       if (isNewCourse) {
         setIsNewCourse(false);
         setNewCourseForm({ code: "", title: "" });
@@ -166,14 +144,11 @@ export function FacultyEnrollmentManager({
           <span>Available to publish</span>
         </article>
         <article className="metric-panel">
-          <p>Total enrollments</p>
+          <p>Total assignments</p>
           <strong>
-            {publishedEnrollments.reduce(
-              (sum, curr) => sum + curr.assignedUserIds.length,
-              0,
-            )}
+            {publishedEnrollments.length}
           </strong>
-          <span>Assigned across cohorts</span>
+          <span>Published cohorts</span>
         </article>
         <article className="metric-panel">
           <p>Active cohorts</p>
@@ -208,7 +183,7 @@ export function FacultyEnrollmentManager({
               Publish courses to students
             </h2>
             <p className="mt-1 text-xs text-[var(--muted)]">
-              Select specific cohorts by year and section, or assign to all students.
+              Define the target cohort (department, year, sections) for your course.
             </p>
           </div>
           <button
@@ -217,7 +192,7 @@ export function FacultyEnrollmentManager({
             type="button"
           >
             {showForm ? <X size={17} /> : <Plus size={17} />}{" "}
-            {showForm ? "Close" : "Assign enrollment"}
+            {showForm ? "Close" : "Publish to cohort"}
           </button>
         </header>
 
@@ -304,12 +279,9 @@ export function FacultyEnrollmentManager({
                       <p className="text-[10px] font-bold uppercase tracking-[.14em] text-emerald-600">
                         Step 2
                       </p>
-                      <h3 className="text-sm font-semibold">Choose students</h3>
+                      <h3 className="text-sm font-semibold">Define target audience</h3>
                     </div>
                   </div>
-                  <span className="text-xs text-[var(--muted)]">
-                    {recipientCount} selected
-                  </span>
                 </div>
                 <div className="segmented-control w-full sm:w-[360px]">
                   <button
@@ -321,88 +293,72 @@ export function FacultyEnrollmentManager({
                     All students
                   </button>
                   <button
-                    className={`flex-1 ${audience === "selected" ? "active" : ""}`}
-                    onClick={() => setAudience("selected")}
+                    className={`flex-1 ${audience === "cohort" ? "active" : ""}`}
+                    onClick={() => setAudience("cohort")}
                     type="button"
                   >
                     <UserRoundCheck size={14} className="mr-1 inline" />
-                    Selected
+                    Specific cohort
                   </button>
                 </div>
-                {audience === "selected" && (
-                  <div className="mt-4 overflow-hidden rounded-md border border-[var(--line)]">
-                    <div className="m-2">
-                      <CohortFilters
-                        department={department}
-                        section={section}
-                        onDepartment={setDepartment}
-                        onSection={setSection}
-                      />
-                    </div>
-                    <div className="m-2 flex flex-wrap gap-2">
-                      <label className="search-control min-w-[220px] flex-1">
-                        <Search size={14} />
-                        <input
-                          value={studentQuery}
-                          onChange={(event) =>
-                            setStudentQuery(event.target.value)
-                          }
-                          placeholder="Search students"
-                        />
-                      </label>
-                      <button
-                        className="secondary-button"
-                        onClick={() =>
-                          setSelectedStudentIds((current) => [
-                            ...new Set([
-                              ...current,
-                              ...filteredStudents.map((student) => student.id),
-                            ]),
-                          ])
-                        }
-                        type="button"
+                {audience === "cohort" && (
+                  <div className="mt-5 grid gap-5 border-t border-[var(--line)] pt-5 sm:grid-cols-2">
+                    <label>
+                      Department
+                      <select
+                        className="profile-select"
+                        value={department}
+                        onChange={(e) => setDepartment(e.target.value)}
                       >
-                        Select filtered
-                      </button>
-                      <button
-                        className="icon-button"
-                        onClick={() => setSelectedStudentIds([])}
-                        title="Clear selection"
-                        type="button"
+                        <option value="">Any Department</option>
+                        {["CSE", "CSM", "CSD", "ECE", "EEE"].map((dept) => (
+                          <option key={dept} value={dept}>
+                            {dept}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      Year
+                      <select
+                        className="profile-select"
+                        value={year}
+                        onChange={(e) => setYear(e.target.value)}
                       >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                    <div className="max-h-48 overflow-y-auto border-t border-[var(--line)]">
-                      {renderedStudents.map((student) => (
-                        <label
-                          className="flex cursor-pointer items-center gap-3 border-b border-[var(--line)] px-3 py-2.5 last:border-0"
-                          key={student.id}
-                        >
-                          <input
-                            checked={selectedStudentIds.includes(student.id)}
-                            onChange={(event) =>
-                              setSelectedStudentIds((current) =>
-                                event.target.checked
-                                  ? [...current, student.id]
-                                  : current.filter((id) => id !== student.id),
-                              )
-                            }
-                            type="checkbox"
-                          />
-                          <span>
-                            <strong className="block text-xs">
-                              {student.name}
-                            </strong>
-                            <small className="text-[10px] text-[var(--muted)]">
-                              {student.rollNumber || student.email} /{" "}
-                              {student.department || "-"} /{" "}
-                              {student.section || "-"}
-                            </small>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
+                        <option value="">Any Year</option>
+                        {["1", "2", "3", "4"].map((y) => (
+                          <option key={y} value={y}>
+                            Year {y}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <fieldset className="sm:col-span-2">
+                      <legend className="mb-2 text-sm font-medium">Sections</legend>
+                      <div className="flex flex-wrap gap-4 rounded-md border border-[var(--line)] bg-[var(--surface)] p-4">
+                        {["A", "B", "C", "D", "E", "F"].map((sec) => (
+                          <label
+                            key={sec}
+                            className="flex cursor-pointer items-center gap-2 text-sm"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={sections.includes(sec)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSections([...sections, sec]);
+                                } else {
+                                  setSections(sections.filter((s) => s !== sec));
+                                }
+                              }}
+                            />
+                            {sec}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
                   </div>
                 )}
               </section>
@@ -411,7 +367,7 @@ export function FacultyEnrollmentManager({
             <footer className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-end">
               <button
                 className="primary-button bg-indigo-600 hover:bg-indigo-700"
-                disabled={publishing || recipientCount === 0}
+                disabled={publishing || (audience === "cohort" && !department && !year && sections.length === 0)}
                 type="submit"
               >
                 {publishing ? (
@@ -431,7 +387,7 @@ export function FacultyEnrollmentManager({
               <tr>
                 <th>Course</th>
                 <th>Assigned Date</th>
-                <th>Total Students Enrolled</th>
+                <th>Target Audience</th>
                 <th aria-label="Actions" />
               </tr>
             </thead>
@@ -458,9 +414,28 @@ export function FacultyEnrollmentManager({
                       </span>
                     </td>
                     <td>
-                      <span className="tag success">
-                        {enrollment.assignedUserIds.length} Enrolled
-                      </span>
+                      {enrollment.target.audience === "all" ? (
+                        <span className="tag success">All students</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {enrollment.target.department && (
+                            <span className="tag warning">
+                              {enrollment.target.department}
+                            </span>
+                          )}
+                          {enrollment.target.year && (
+                            <span className="tag warning">
+                              Year {enrollment.target.year}
+                            </span>
+                          )}
+                          {enrollment.target.sections &&
+                            enrollment.target.sections.length > 0 && (
+                              <span className="tag warning">
+                                Sec {enrollment.target.sections.join(", ")}
+                              </span>
+                            )}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <div className="flex gap-1">

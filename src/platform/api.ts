@@ -221,6 +221,22 @@ export async function assignCourseToStudents(
   });
 }
 
+export async function publishCourseToCohort(
+  token: string,
+  courseId: string,
+  target: {
+    audience: "all" | "cohort";
+    department?: string;
+    year?: string;
+    sections?: string[];
+  },
+) {
+  return platformMutation(token, "course-publish", {
+    courseId,
+    target,
+  });
+}
+
 export async function publishResource(
   token: string,
   resource: Pick<
