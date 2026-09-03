@@ -1,0 +1,73 @@
+{
+  "users": [
+    {
+      "id": "u-admin-001",
+      "name": "K. Uma Shankar",
+      "email": "admin@kgr.ac.in",
+      "password": "admin123",
+      "role": "admin",
+      "title": "Super Admin"
+    },
+    {
+      "id": "u-faculty-001",
+      "name": "K. Uma Shankar",
+      "email": "umashankar@kgr.ac.in",
+      "password": "123dskgr",
+      "role": "faculty",
+      "title": "Faculty Administrator"
+    },
+    {
+      "id": "u-student-001",
+      "name": "Karthikeyan",
+      "email": "karthikeyan@kgr.ac.in",
+      "password": "password123",
+      "role": "student",
+      "title": "Student"
+    }
+  ],
+  "subjects": [
+    {
+      "id": "sub-dbms",
+      "name": "Database Management Systems",
+      "type": "Theory + Lab",
+      "semester": "Sem 4",
+      "section": "CSE-A"
+    },
+    {
+      "id": "sub-os",
+      "name": "Operating Systems",
+      "type": "Theory Only",
+      "semester": "Sem 4",
+      "section": "CSE-B"
+    },
+    {
+      "id": "sub-python-lab",
+      "name": "Python Programming Lab",
+      "type": "Lab Only",
+      "semester": "Sem 2",
+      "section": "IT-A Batch 2"
+    }
+  ],
+  "assignments": [
+    {
+      "id": "a-dbms-joins",
+      "title": "DBMS Lab 5: SQL Joins Practice",
+      "subjectId": "sub-dbms",
+      "dueDate": "2026-08-25",
+      "assigned": 64,
+      "submitted": 46,
+      "pending": 18,
+      "reviewed": 31
+    },
+    {
+      "id": "a-os-deadlock",
+      "title": "OS Practice 4: Deadlock Scenarios",
+      "subjectId": "sub-os",
+      "dueDate": "2026-08-26",
+      "assigned": 58,
+      "submitted": 39,
+      "pending": 19,
+      "reviewed": 28
+    }
+  ]
+}
