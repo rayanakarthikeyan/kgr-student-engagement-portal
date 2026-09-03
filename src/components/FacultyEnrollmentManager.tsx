@@ -101,10 +101,10 @@ export function FacultyEnrollmentManager({
         ...prev,
         {
           id: newId,
-          code: newCourseForm.code,
+          code: newCourseForm.code as "JAVA" | "DBMS",
           title: newCourseForm.title,
           description: "Newly created course",
-          accent: "indigo",
+          accent: "cyan",
           faculty: session.user.name,
           enrolled: 0,
           units: [],
