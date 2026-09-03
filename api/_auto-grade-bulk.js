@@ -16,7 +16,11 @@ export default async function handler(req, res) {
     }
 
     if (!process.env.GEMINI_API_KEY) {
-      return res.status(503).json({ error: "AI services are not configured. Please add GEMINI_API_KEY." });
+      return res
+        .status(503)
+        .json({
+          error: "AI services are not configured. Please add GEMINI_API_KEY.",
+        });
     }
 
     // 1. Fetch all ungraded submissions (status = 'submitted')
@@ -28,18 +32,22 @@ export default async function handler(req, res) {
 
     if (fetchError) {
       console.error("Error fetching submissions:", fetchError);
-      return res.status(500).json({ error: "Failed to fetch pending submissions" });
+      return res
+        .status(500)
+        .json({ error: "Failed to fetch pending submissions" });
     }
 
     if (!pendingSubmissions || pendingSubmissions.length === 0) {
-      return res.status(200).json({ gradedCount: 0, message: "No pending submissions to grade." });
+      return res
+        .status(200)
+        .json({ gradedCount: 0, message: "No pending submissions to grade." });
     }
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
-      }
+      },
     });
 
     let gradedCount = 0;
@@ -50,8 +58,9 @@ export default async function handler(req, res) {
       if (!assignment) continue;
 
       const maxMarks = assignment.max_marks || 10;
-      const expectedOutput = assignment.test_cases?.[0]?.output || "Not provided";
-      
+      const expectedOutput =
+        assignment.test_cases?.[0]?.output || "Not provided";
+
       const systemPrompt = `You are an expert Computer Science professor at KG Reddy College of Engineering and Technology.
 Your task is to evaluate a student's submission for an assignment and grade it.
 
@@ -82,14 +91,17 @@ Respond with ONLY a valid JSON object matching this schema:
         const responseText = result.response.text();
         const evaluation = JSON.parse(responseText);
 
-        const score = Math.max(0, Math.min(maxMarks, Number(evaluation.score) || 0));
+        const score = Math.max(
+          0,
+          Math.min(maxMarks, Number(evaluation.score) || 0),
+        );
         const feedback = evaluation.feedback || "Graded automatically by AI.";
 
         // Update the record in Supabase
         const updatedMetadata = {
           ...submission.metadata,
           faculty_feedback: feedback,
-          auto_graded: true
+          auto_graded: true,
         };
 
         const { error: updateError } = await supabase
@@ -98,7 +110,7 @@ Respond with ONLY a valid JSON object matching this schema:
             status: "graded",
             score: score,
             metadata: updatedMetadata,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq("id", submission.id);
 
@@ -106,13 +118,20 @@ Respond with ONLY a valid JSON object matching this schema:
           gradedCount++;
         }
       } catch (evalError) {
-        console.error(`Failed to evaluate submission ${submission.id}:`, evalError);
+        console.error(
+          `Failed to evaluate submission ${submission.id}:`,
+          evalError,
+        );
         // Continue to the next one even if this one fails
       }
     }
 
-    return res.status(200).json({ gradedCount, message: `Successfully graded ${gradedCount} submissions.` });
-
+    return res
+      .status(200)
+      .json({
+        gradedCount,
+        message: `Successfully graded ${gradedCount} submissions.`,
+      });
   } catch (err) {
     console.error("Bulk auto-grade error:", err);
     return res.status(500).json({ error: "Internal server error" });

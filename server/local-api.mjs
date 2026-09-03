@@ -17,7 +17,9 @@ import codeRunner from "../api/_code-runner.js";
 dotenv.config({ path: ".env.local" });
 dotenv.config();
 
-process.env.LOCAL_API_SEED_PATH ||= fileURLToPath(new URL("./db.seed.json", import.meta.url));
+process.env.LOCAL_API_SEED_PATH ||= fileURLToPath(
+  new URL("./db.seed.json", import.meta.url),
+);
 
 const HOST = process.env.HOST ?? "127.0.0.1";
 const PORT = Number(process.env.PORT ?? 8787);
@@ -55,7 +57,10 @@ function createResponse(nativeResponse) {
     },
     json(payload) {
       if (!nativeResponse.hasHeader("Content-Type")) {
-        nativeResponse.setHeader("Content-Type", "application/json; charset=utf-8");
+        nativeResponse.setHeader(
+          "Content-Type",
+          "application/json; charset=utf-8",
+        );
       }
       nativeResponse.end(JSON.stringify(payload));
     },
@@ -71,7 +76,9 @@ const server = createServer(async (request, response) => {
     const handler = routes[url.pathname];
 
     if (!handler) {
-      response.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
+      response.writeHead(404, {
+        "Content-Type": "application/json; charset=utf-8",
+      });
       response.end(JSON.stringify({ error: "Not found" }));
       return;
     }
@@ -81,8 +88,14 @@ const server = createServer(async (request, response) => {
 
     await handler(request, createResponse(response));
   } catch (error) {
-    response.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
-    response.end(JSON.stringify({ error: error instanceof Error ? error.message : "Server error" }));
+    response.writeHead(500, {
+      "Content-Type": "application/json; charset=utf-8",
+    });
+    response.end(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Server error",
+      }),
+    );
   }
 });
 

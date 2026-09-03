@@ -4,9 +4,13 @@ const isWindows = process.platform === "win32";
 const command = isWindows ? "cmd.exe" : "npm";
 
 function run(script) {
-  return spawn(command, isWindows ? ["/c", "npm", "run", script] : ["run", script], {
-    stdio: "inherit",
-  });
+  return spawn(
+    command,
+    isWindows ? ["/c", "npm", "run", script] : ["run", script],
+    {
+      stdio: "inherit",
+    },
+  );
 }
 
 const processes = [run("api:local"), run("dev:vite")];

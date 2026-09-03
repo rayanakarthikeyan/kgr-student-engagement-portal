@@ -21,10 +21,13 @@ export default async function handler(req, res) {
 
   try {
     const expectedToken = process.env.BOOTSTRAP_ADMIN_TOKEN;
-    const providedToken = req.headers?.["x-bootstrap-token"] || req.headers?.["X-Bootstrap-Token"];
+    const providedToken =
+      req.headers?.["x-bootstrap-token"] || req.headers?.["X-Bootstrap-Token"];
 
     if (!expectedToken) {
-      return res.status(503).json({ error: "Bootstrap token is not configured" });
+      return res
+        .status(503)
+        .json({ error: "Bootstrap token is not configured" });
     }
 
     if (providedToken !== expectedToken) {
@@ -47,7 +50,12 @@ export default async function handler(req, res) {
     const body = getBody(req);
     const password = cleanText(body.password);
     if (password.length < 12) {
-      return res.status(400).json({ error: "The initial administrator password must contain at least 12 characters" });
+      return res
+        .status(400)
+        .json({
+          error:
+            "The initial administrator password must contain at least 12 characters",
+        });
     }
     const payload = {
       id: cleanText(body.id) || "u-admin-001",

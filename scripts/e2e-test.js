@@ -5,7 +5,7 @@ async function runTests() {
   const randomSuffix = Math.floor(Math.random() * 100000);
   const testEmail = `qa_test_${randomSuffix}@example.com`;
   const testPassword = "Password123!";
-  
+
   let token = "";
 
   // 1. Registration Test
@@ -20,13 +20,13 @@ async function runTests() {
         password: testPassword,
         role: "student",
         year: "2",
-        rollNumber: "2200000000",
+        rollNumber: `22${randomSuffix}00`,
         contactNumber: "9876543210",
         department: "CSE",
-        section: "A"
-      })
+        section: "A",
+      }),
     });
-    
+
     if (!regRes.ok) throw new Error(await regRes.text());
     console.log("✅ Registration Successful!");
   } catch (err) {
@@ -40,13 +40,13 @@ async function runTests() {
     const loginRes = await fetch(`${url}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: testEmail, password: testPassword })
+      body: JSON.stringify({ email: testEmail, password: testPassword }),
     });
-    
+
     if (!loginRes.ok) throw new Error(await loginRes.text());
     const data = await loginRes.json();
     token = data.token;
-    
+
     if (!token) throw new Error("No token received!");
     console.log("✅ Login Successful! Token received.");
   } catch (err) {
@@ -57,16 +57,21 @@ async function runTests() {
   // 3. User Session Verification (Dashboard logic)
   console.log(`\n[3/4] Testing Session & User Profile Data...`);
   try {
-    const userRes = await fetch(`${url}/users?email=${testEmail}`, {
-      headers: { "Authorization": `Bearer ${token}` }
+    const userRes = await fetch(`${url}/login`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
-    
+
     if (!userRes.ok) throw new Error(await userRes.text());
     const userData = await userRes.json();
-    const user = userData.users[0];
-    
-    if (user.year !== "2") throw new Error(`Year was not saved correctly! Expected "2", got "${user.year}"`);
-    console.log("✅ Session Validated! Year field successfully verified as: " + user.year);
+    const user = userData.user;
+
+    if (user.year !== "2")
+      throw new Error(
+        `Year was not saved correctly! Expected "2", got "${user.year}"`,
+      );
+    console.log(
+      "✅ Session Validated! Year field successfully verified as: " + user.year,
+    );
   } catch (err) {
     console.error("❌ Session Validation Failed:", err.message);
     return;
@@ -76,12 +81,14 @@ async function runTests() {
   console.log(`\n[4/4] Testing Assignments Feed (Dashboard Load)...`);
   try {
     const assignRes = await fetch(`${url}/assignments`, {
-      headers: { "Authorization": `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     });
-    
+
     if (!assignRes.ok) throw new Error(await assignRes.text());
     const assignData = await assignRes.json();
-    console.log(`✅ Assignments Loaded! Found ${assignData.assignments?.length || 0} active assignments.`);
+    console.log(
+      `✅ Assignments Loaded! Found ${assignData.assignments?.length || 0} active assignments.`,
+    );
   } catch (err) {
     console.error("❌ Assignments Fetch Failed:", err.message);
     return;

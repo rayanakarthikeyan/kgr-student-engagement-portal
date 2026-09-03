@@ -14,7 +14,10 @@ import {
 } from "./_shared.js";
 
 function createSubjectId(name) {
-  const slug = cleanText(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  const slug = cleanText(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
   return `sub-${slug || randomUUID()}`;
 }
 
@@ -25,11 +28,16 @@ function normalizeSubjectPayload(body, { partial = false } = {}) {
     payload.type = cleanText(body.type);
     assertSubjectType(payload.type);
   }
-  if (!partial || body.semester !== undefined) payload.semester = cleanText(body.semester);
-  if (!partial || body.section !== undefined) payload.section = cleanText(body.section);
-  if (body.department !== undefined) payload.department = cleanText(body.department);
-  if (body.academicYear !== undefined) payload.academic_year = cleanText(body.academicYear);
-  if (body.academic_year !== undefined) payload.academic_year = cleanText(body.academic_year);
+  if (!partial || body.semester !== undefined)
+    payload.semester = cleanText(body.semester);
+  if (!partial || body.section !== undefined)
+    payload.section = cleanText(body.section);
+  if (body.department !== undefined)
+    payload.department = cleanText(body.department);
+  if (body.academicYear !== undefined)
+    payload.academic_year = cleanText(body.academicYear);
+  if (body.academic_year !== undefined)
+    payload.academic_year = cleanText(body.academic_year);
   if (body.isActive !== undefined) payload.is_active = Boolean(body.isActive);
   if (body.is_active !== undefined) payload.is_active = Boolean(body.is_active);
 
@@ -50,12 +58,18 @@ export default async function handler(req, res) {
 
     if (req.method === "GET") {
       const query = getQuery(req);
-      let request = supabase.from("subjects").select("*").order("name", { ascending: true });
+      let request = supabase
+        .from("subjects")
+        .select("*")
+        .order("name", { ascending: true });
 
       if (query.type) request = request.eq("type", cleanText(query.type));
-      if (query.semester) request = request.eq("semester", cleanText(query.semester));
-      if (query.section) request = request.eq("section", cleanText(query.section));
-      if (query.search) request = request.ilike("name", `%${cleanText(query.search)}%`);
+      if (query.semester)
+        request = request.eq("semester", cleanText(query.semester));
+      if (query.section)
+        request = request.eq("section", cleanText(query.section));
+      if (query.search)
+        request = request.ilike("name", `%${cleanText(query.search)}%`);
 
       const { data, error } = await request;
       if (error) throw error;
@@ -67,21 +81,35 @@ export default async function handler(req, res) {
     }
 
     if (!["admin", "faculty"].includes(actor.role)) {
-      const error = new Error("Only faculty or a Super Admin can manage student groups");
+      const error = new Error(
+        "Only faculty or a Super Admin can manage student groups",
+      );
       error.statusCode = 403;
       throw error;
     }
 
     if (req.method === "POST") {
       const body = getBody(req);
-      const missing = requireFields(body, ["name", "type", "semester", "section"]);
+      const missing = requireFields(body, [
+        "name",
+        "type",
+        "semester",
+        "section",
+      ]);
       if (missing) return res.status(400).json({ error: missing });
 
       const payload = normalizeSubjectPayload(body);
       payload.id = cleanText(body.id) || createSubjectId(payload.name);
-      payload.is_active = body.isActive === undefined && body.is_active === undefined ? true : Boolean(payload.is_active);
+      payload.is_active =
+        body.isActive === undefined && body.is_active === undefined
+          ? true
+          : Boolean(payload.is_active);
 
-      const { data, error } = await supabase.from("subjects").insert(payload).select("*").single();
+      const { data, error } = await supabase
+        .from("subjects")
+        .insert(payload)
+        .select("*")
+        .single();
       if (error) throw error;
       return res.status(201).json({ subject: data });
     }
@@ -97,12 +125,22 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "No subject fields provided" });
       }
 
-      const { data, error } = await supabase.from("subjects").update(payload).eq("id", id).select("*").single();
+      const { data, error } = await supabase
+        .from("subjects")
+        .update(payload)
+        .eq("id", id)
+        .select("*")
+        .single();
       if (error) throw error;
       return res.status(200).json({ subject: data });
     }
 
-    const { data, error } = await supabase.from("subjects").delete().eq("id", id).select("*").single();
+    const { data, error } = await supabase
+      .from("subjects")
+      .delete()
+      .eq("id", id)
+      .select("*")
+      .single();
     if (error) throw error;
     return res.status(200).json({ subject: data });
   } catch (error) {

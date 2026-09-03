@@ -1,4 +1,11 @@
-import { createSupabaseClient, handleOptions, methodNotAllowed, requireAdmin, sendError, setCors } from "./_shared.js";
+import {
+  createSupabaseClient,
+  handleOptions,
+  methodNotAllowed,
+  requireAdmin,
+  sendError,
+  setCors,
+} from "./_shared.js";
 
 export default async function handler(req, res) {
   setCors(res, "GET,OPTIONS");
@@ -16,19 +23,19 @@ export default async function handler(req, res) {
       .from("users")
       .select("id, name, email, role, title, is_active, created_at")
       .order("created_at", { ascending: false });
-    
+
     if (usersError) throw usersError;
 
     const { count: subjectCount, error: subjectError } = await supabase
       .from("subjects")
       .select("*", { count: "exact", head: true });
-      
+
     if (subjectError) throw subjectError;
 
     const { count: assignmentCount, error: assignmentError } = await supabase
       .from("assignments")
       .select("*", { count: "exact", head: true });
-      
+
     if (assignmentError) throw assignmentError;
 
     return res.status(200).json({

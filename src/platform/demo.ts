@@ -46,7 +46,8 @@ export const courses: Course[] = [
     id: "course-dbms",
     code: "DBMS",
     title: "Database Management Systems",
-    description: "KGR25 database theory, SQL practice, assessments, and experiments.",
+    description:
+      "KGR25 database theory, SQL practice, assessments, and experiments.",
     accent: "amber",
     faculty: "KGR Faculty",
     enrolled: 0,
@@ -81,12 +82,19 @@ export const labChallenges: LabChallenge[] = [
     language: "java",
     title: "Java editor orientation",
     topic: "Classes and console output",
-    statement: "Complete a small Java class with a main method and print a result.",
-    concept: "A Java application begins at the public static void main entry point.",
-    constraints: ["Use a Main class", "Keep braces balanced", "Print at least one value"],
+    statement:
+      "Complete a small Java class with a main method and print a result.",
+    concept:
+      "A Java application begins at the public static void main entry point.",
+    constraints: [
+      "Use a Main class",
+      "Keep braces balanced",
+      "Print at least one value",
+    ],
     sampleInput: "",
     expectedOutput: "Java structure checks passed.",
-    starterCode: "public class Main {\n  public static void main(String[] args) {\n    System.out.println(\"Ready\");\n  }\n}",
+    starterCode:
+      'public class Main {\n  public static void main(String[] args) {\n    System.out.println("Ready");\n  }\n}',
     hint: "Keep the class and main method declarations before adding the solution.",
   },
   {
@@ -96,8 +104,12 @@ export const labChallenges: LabChallenge[] = [
     title: "SQL editor orientation",
     topic: "Read-only queries",
     statement: "Write a SELECT query and validate its basic structure.",
-    concept: "SELECT identifies result columns and FROM identifies the source relation.",
-    constraints: ["Terminate the statement with a semicolon", "Use balanced parentheses"],
+    concept:
+      "SELECT identifies result columns and FROM identifies the source relation.",
+    constraints: [
+      "Terminate the statement with a semicolon",
+      "Use balanced parentheses",
+    ],
     sampleInput: "",
     expectedOutput: "SQL structure checks passed.",
     starterCode: "SELECT *\nFROM students;",

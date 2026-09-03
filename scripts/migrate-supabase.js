@@ -4,11 +4,13 @@ import { resolve } from "node:path";
 import pg from "pg";
 
 const envFile = process.argv[2] || ".env.local";
-const migrationFile = process.argv[3] || "supabase/migrations/20260824_academic_platform.sql";
+const migrationFile =
+  process.argv[3] || "supabase/migrations/20260824_academic_platform.sql";
 
 dotenv.config({ path: envFile });
 
-const rawConnectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL;
+const rawConnectionString =
+  process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL;
 if (!rawConnectionString || rawConnectionString === "[SENSITIVE]") {
   throw new Error("POSTGRES_URL_NON_POOLING or POSTGRES_URL is required");
 }
@@ -38,9 +40,15 @@ try {
     ORDER BY table_name
   `);
 
-  console.log(`Migration applied. Verified tables: ${rows.map((row) => row.table_name).join(", ")}`);
+  console.log(
+    `Migration applied. Verified tables: ${rows.map((row) => row.table_name).join(", ")}`,
+  );
 } catch (error) {
-  try { await client.query("ROLLBACK"); } catch { /* Connection may already be closed. */ }
+  try {
+    await client.query("ROLLBACK");
+  } catch {
+    /* Connection may already be closed. */
+  }
   throw error;
 } finally {
   await client.end().catch(() => undefined);

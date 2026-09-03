@@ -8,7 +8,12 @@ interface PdfTrackerOptions {
   onEvent: (event: ActivityLog) => void;
 }
 
-export function usePdfTracker({ userId, courseId, resourceId, onEvent }: PdfTrackerOptions) {
+export function usePdfTracker({
+  userId,
+  courseId,
+  resourceId,
+  onEvent,
+}: PdfTrackerOptions) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeSeconds, setActiveSeconds] = useState(0);
   const visibleRef = useRef(false);
@@ -33,16 +38,24 @@ export function usePdfTracker({ userId, courseId, resourceId, onEvent }: PdfTrac
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      visibleRef.current = entry.isIntersecting && entry.intersectionRatio >= 0.5;
-    }, { threshold: [0.5] });
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        visibleRef.current =
+          entry.isIntersecting && entry.intersectionRatio >= 0.5;
+      },
+      { threshold: [0.5] },
+    );
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
-    const onFocus = () => { focusedRef.current = true; };
-    const onBlur = () => { focusedRef.current = false; };
+    const onFocus = () => {
+      focusedRef.current = true;
+    };
+    const onBlur = () => {
+      focusedRef.current = false;
+    };
     window.addEventListener("focus", onFocus);
     window.addEventListener("blur", onBlur);
     const timer = window.setInterval(() => {

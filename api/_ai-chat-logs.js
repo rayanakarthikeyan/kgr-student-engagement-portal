@@ -9,7 +9,9 @@ export default async function handler(req, res) {
     const supabase = createSupabaseClient({ requirePrivileged: true });
     const user = await requireUser(supabase, req, ["faculty"]);
     if (!user) {
-      return res.status(401).json({ error: "Unauthorized. Only faculty can view AI chat logs." });
+      return res
+        .status(401)
+        .json({ error: "Unauthorized. Only faculty can view AI chat logs." });
     }
 
     const { userId } = req.query;
@@ -30,6 +32,8 @@ export default async function handler(req, res) {
     return res.status(200).json({ logs: data || [] });
   } catch (error) {
     console.error("AI Chat Logs Error:", error);
-    return res.status(500).json({ error: "Server error while fetching AI chat logs" });
+    return res
+      .status(500)
+      .json({ error: "Server error while fetching AI chat logs" });
   }
 }

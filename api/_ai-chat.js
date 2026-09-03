@@ -16,7 +16,11 @@ export default async function handler(req, res) {
     }
 
     if (!process.env.GEMINI_API_KEY) {
-      return res.status(503).json({ error: "AI services are not configured. Please add GEMINI_API_KEY." });
+      return res
+        .status(503)
+        .json({
+          error: "AI services are not configured. Please add GEMINI_API_KEY.",
+        });
     }
 
     const { challengeId, code, statement, history, message } = req.body;
@@ -54,9 +58,9 @@ CRITICAL RULES:
       parts: [{ text: msg.content }],
     }));
 
-    const model = genAI.getGenerativeModel({ 
+    const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
-      systemInstruction: systemPrompt 
+      systemInstruction: systemPrompt,
     });
 
     const chat = model.startChat({
@@ -77,6 +81,8 @@ CRITICAL RULES:
     return res.status(200).json({ response: aiResponse });
   } catch (error) {
     console.error("AI Chat Error:", error);
-    return res.status(500).json({ error: "Failed to communicate with AI service" });
+    return res
+      .status(500)
+      .json({ error: "Failed to communicate with AI service" });
   }
 }
