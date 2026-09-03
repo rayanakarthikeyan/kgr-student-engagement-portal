@@ -30,12 +30,15 @@ export default async function handler(req, res) {
     }
 
     // Save the user's message to the database
+    const crypto = await import("node:crypto");
     // Save the user's message to the database
-    await supabase.from("ai_chat_logs").insert({
-      user_id: user.id,
-      challenge_id: challengeId,
-      role: "user",
-      content: message,
+    await supabase.from("learning_records").insert({
+      id: crypto.randomUUID(),
+      kind: "ai_chat",
+      author_id: user.id,
+      assignment_id: challengeId,
+      body: message,
+      metadata: { role: "user" },
     });
 
     const systemPrompt = `You are an expert teaching assistant at KG Reddy College of Engineering and Technology. 
@@ -71,11 +74,13 @@ CRITICAL RULES:
     const aiResponse = result.response.text();
 
     // Save the AI's response to the database
-    await supabase.from("ai_chat_logs").insert({
-      user_id: user.id,
-      challenge_id: challengeId,
-      role: "model",
-      content: aiResponse,
+    await supabase.from("learning_records").insert({
+      id: crypto.randomUUID(),
+      kind: "ai_chat",
+      author_id: user.id,
+      assignment_id: challengeId,
+      body: aiResponse,
+      metadata: { role: "model" },
     });
 
     return res.status(200).json({ response: aiResponse });

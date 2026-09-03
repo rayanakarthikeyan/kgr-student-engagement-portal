@@ -19,9 +19,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing userId parameter" });
     }
     const { data, error } = await supabase
-      .from("ai_chat_logs")
+      .from("learning_records")
       .select("*")
-      .eq("user_id", userId)
+      .eq("author_id", userId)
+      .eq("kind", "ai_chat")
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -29,7 +30,16 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Failed to fetch AI chat logs" });
     }
 
-    return res.status(200).json({ logs: data || [] });
+    const logs = (data || []).map((record) => ({
+      id: record.id,
+      user_id: record.author_id,
+      challenge_id: record.assignment_id,
+      role: record.metadata?.role || "user",
+      content: record.body,
+      created_at: record.created_at,
+    }));
+
+    return res.status(200).json({ logs });
   } catch (error) {
     console.error("AI Chat Logs Error:", error);
     return res
