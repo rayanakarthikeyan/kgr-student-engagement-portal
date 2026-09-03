@@ -87,6 +87,10 @@ interface PortalData {
   aiConfigured: boolean;
 }
 
+function emptyPortalData(): PortalData {
+  return { users: [], subjects: [], assignments: [], records: [], people: [], learning: [], aiConfigured: false };
+}
+
 const navigationByRole: Record<RoleId, { id: ViewId; label: string; icon: React.ElementType }[]> = {
   admin: [
     { id: "overview", label: "Dashboard", icon: LayoutDashboard },
@@ -1016,7 +1020,7 @@ export function App() {
   const [query, setQuery] = useState("");
   const [selectedSubjectIndex, setSelectedSubjectIndex] = useState(0);
   const [modalSubject, setModalSubject] = useState<Subject | null>(null);
-  const [portalData, setPortalData] = useState<PortalData>({ users: [], subjects: [], assignments: [], records: [], people: [], learning: [], aiConfigured: false });
+  const [portalData, setPortalData] = useState<PortalData>(emptyPortalData);
   const [statusMessage, setStatusMessage] = useState("");
   const lastActivityRef = useRef(Date.now());
 
@@ -1293,6 +1297,8 @@ export function App() {
   };
 
   const login = (user: ApiUser, auth: SessionAuth) => {
+    setPortalData(emptyPortalData());
+    setStatusMessage("");
     setRole(user.role);
     setSessionAuth(auth);
     setSessionUser(user);
@@ -1304,6 +1310,8 @@ export function App() {
   };
 
   const logout = () => {
+    setPortalData(emptyPortalData());
+    setStatusMessage("");
     setIsAuthenticated(false);
     setSessionAuth(null);
     setSessionUser(null);
