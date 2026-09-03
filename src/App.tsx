@@ -454,7 +454,7 @@ function AssignmentWorkbench({
             <p>{canManage ? "Review submissions, completion, pending students, and time spent for this assignment or quiz." : "View the due date, status, and details for this assignment or quiz."}</p>
             <select aria-label="Choose assignment">
               {cards.map((assignment) => (
-                <option key={assignment.title}>{assignment.title} with {assignment.submitted} submissions</option>
+                <option key={assignment.title}>{assignment.title} with {assignment.submitted} submission{assignment.submitted === 1 ? "" : "s"}</option>
               ))}
             </select>
             <div className="submission-summary">

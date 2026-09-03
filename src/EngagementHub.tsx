@@ -151,7 +151,7 @@ function FacultyEngagement({ records, people, onCreate, onUpdate }: Omit<Engagem
           </article>
           <aside className="panel">
             <h2>Weekly Follow-up</h2>
-            <p>{students.length} students · {activeStudentIds.size} active · {openHelp.length} waiting for help.</p>
+            <p>{students.length} student{students.length === 1 ? "" : "s"} · {activeStudentIds.size} active · {openHelp.length} waiting for help.</p>
             <div className="list-stack compact-list">
               {students.filter((student) => !activeStudentIds.has(student.id)).map((student) => <div className="list-row" key={student.id}><strong>{student.name}</strong><div className="actions"><span className="badge risk">Low activity</span><button className="button secondary compact" type="button" onClick={() => void onCreate({ kind: "reminder", targetUserId: student.id, title: "Learning activity reminder", body: "Please return to your pending learning work or send a private help request if you are blocked." })}>Remind</button></div></div>)}
             </div>
