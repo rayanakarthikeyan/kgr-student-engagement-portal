@@ -20,13 +20,8 @@ const kinds = new Set([
   "announcement_ack",
   "pulse",
   "pulse_response",
-  "office_slot",
-  "office_booking",
   "journal",
   "recognition",
-  "discussion",
-  "discussion_reply",
-  "goal",
   "time_session",
 ]);
 
@@ -35,11 +30,7 @@ const studentCreateKinds = new Set([
   "check_in",
   "announcement_ack",
   "pulse_response",
-  "office_booking",
   "journal",
-  "discussion",
-  "discussion_reply",
-  "goal",
   "time_session",
 ]);
 
@@ -48,11 +39,7 @@ const facultyCreateKinds = new Set([
   "reminder",
   "announcement",
   "pulse",
-  "office_slot",
   "recognition",
-  "discussion",
-  "discussion_reply",
-  "goal",
   "time_session",
 ]);
 
@@ -75,12 +62,12 @@ function canRead(record, actor) {
     return true;
   }
 
-  return ["announcement", "pulse", "office_slot", "discussion", "discussion_reply", "goal"].includes(record.kind);
+  return ["announcement", "pulse"].includes(record.kind);
 }
 
 function canUpdate(record, actor) {
   if (actor.role === "admin" || record.author_id === actor.id) return true;
-  if (actor.role === "faculty" && ["help_request", "office_booking", "discussion_reply"].includes(record.kind)) return true;
+  if (actor.role === "faculty" && record.kind === "help_request") return true;
   return record.target_user_id === actor.id && ["feedback", "reminder", "recognition"].includes(record.kind);
 }
 

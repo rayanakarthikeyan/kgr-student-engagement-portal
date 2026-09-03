@@ -9,10 +9,8 @@ Vite + React + TypeScript portal for faculty assignments, quizzes, student monit
 - faculty feedback, reminders, recognition, and clarification requests
 - announcements with student acknowledgement
 - pulse checks with student responses
-- office-hour slots, bookings, and confirmation
 - private or faculty-shared learning journals
-- moderated discussions, anonymous questions, peer replies, and shared goals
-- weekly faculty summaries for activity, follow-up, requests, and bookings
+- weekly faculty summaries for activity, follow-up, help requests, and coaching
 
 ## Local Frontend
 
@@ -112,7 +110,7 @@ curl -X POST http://127.0.0.1:8787/api/users \
 
 Use `POST /api/bootstrap-admin` only once on an empty database to create the first Super Admin. It requires the server-only `BOOTSTRAP_ADMIN_TOKEN` value in the `X-Bootstrap-Token` header and returns `409` after an admin already exists.
 
-The engagement API stores check-ins, private help requests, feedback, reminders, announcements, pulse checks, office-hour bookings, journals, recognition, discussions, goals, and active-time sessions in `engagement_records`. Existing Supabase projects must run `supabase/migrations/20260823_engagement_records.sql` once before deploying this release.
+The engagement API stores check-ins, private help requests, feedback, reminders, announcements, pulse checks, journals, recognition, and active-time sessions in `engagement_records`. Existing Supabase projects must run `supabase/migrations/20260823_engagement_records.sql` once before deploying this release.
 
 To test through Vercel CLI instead, run:
 

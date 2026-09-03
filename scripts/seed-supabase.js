@@ -59,7 +59,10 @@ async function seed() {
       name: subject.name,
       type: subject.type,
       semester: subject.semester,
-      section: subject.section
+      section: subject.section,
+      department: subject.department,
+      academic_year: subject.academic_year,
+      is_active: subject.is_active
     });
     if (error) throw new Error(`Error inserting subject: ${error.message}`);
   }

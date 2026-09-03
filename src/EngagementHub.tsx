@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import {
   Award,
   Bell,
-  CalendarDays,
   CheckCircle2,
   Clock3,
   HeartHandshake,
@@ -22,13 +21,8 @@ export type EngagementKind =
   | "announcement_ack"
   | "pulse"
   | "pulse_response"
-  | "office_slot"
-  | "office_booking"
   | "journal"
   | "recognition"
-  | "discussion"
-  | "discussion_reply"
-  | "goal"
   | "time_session";
 
 export interface EngagementRecord {
@@ -103,17 +97,12 @@ function FacultyEngagement({ records, people, onCreate, onUpdate }: Omit<Engagem
   const [announcement, setAnnouncement] = useState({ title: "", body: "", important: false });
   const [pulse, setPulse] = useState({ question: "", options: "Understood, Need another example, Need help" });
   const [coaching, setCoaching] = useState({ targetUserId: students[0]?.id ?? "", kind: "feedback" as "feedback" | "reminder" | "recognition", title: "", body: "", voiceUrl: "" });
-  const [office, setOffice] = useState({ title: "Help session", startsAt: "", capacity: "5" });
-  const [community, setCommunity] = useState({ kind: "discussion" as "discussion" | "discussion_reply" | "goal", parentId: "", title: "", body: "" });
 
   const help = records.filter((record) => record.kind === "help_request" || record.kind === "check_in");
   const openHelp = help.filter((record) => !["resolved", "understood"].includes(record.status));
   const announcements = records.filter((record) => record.kind === "announcement");
   const pulses = records.filter((record) => record.kind === "pulse");
   const coachingRecords = records.filter((record) => ["feedback", "reminder", "recognition"].includes(record.kind));
-  const slots = records.filter((record) => record.kind === "office_slot");
-  const bookings = records.filter((record) => record.kind === "office_booking");
-  const communityRecords = records.filter((record) => ["discussion", "discussion_reply", "goal"].includes(record.kind));
   const timeRecords = records.filter((record) => record.kind === "time_session");
   const activeStudentIds = new Set(timeRecords.filter((record) => Number(record.metadata.active_seconds || 0) > 0).map((record) => record.author_id));
 
@@ -136,29 +125,17 @@ function FacultyEngagement({ records, people, onCreate, onUpdate }: Omit<Engagem
     setCoaching((value) => ({ ...value, title: "", body: "", voiceUrl: "" }));
   };
 
-  const submitOffice = async (event: React.FormEvent) => {
-    event.preventDefault();
-    await onCreate({ kind: "office_slot", title: office.title, body: "Faculty help slot", metadata: { starts_at: office.startsAt, capacity: Number(office.capacity) } });
-    setOffice({ title: "Help session", startsAt: "", capacity: "5" });
-  };
-
-  const submitCommunity = async (event: React.FormEvent) => {
-    event.preventDefault();
-    await onCreate({ kind: community.kind, title: community.title, body: community.body, metadata: { parent_id: community.parentId } });
-    setCommunity((value) => ({ ...value, parentId: "", title: "", body: "" }));
-  };
-
   return (
     <section className="engagement-shell">
       <div className="engagement-summary" aria-label="Weekly engagement summary">
         <article><HeartHandshake size={20} /><strong>{activeStudentIds.size}</strong><span>Active this week</span></article>
         <article><Bell size={20} /><strong>{Math.max(0, students.length - activeStudentIds.size)}</strong><span>Need follow-up</span></article>
         <article><MessageCircle size={20} /><strong>{openHelp.length}</strong><span>Open help requests</span></article>
-        <article><CheckCircle2 size={20} /><strong>{bookings.length}</strong><span>Office bookings</span></article>
+        <article><CheckCircle2 size={20} /><strong>{coachingRecords.length}</strong><span>Coaching messages</span></article>
       </div>
 
       <nav className="engagement-tabs" aria-label="Faculty engagement tools">
-        {[["inbox", "Inbox"], ["broadcasts", "Announcements & Polls"], ["coaching", "Feedback & Recognition"], ["office", "Office Hours"], ["community", "Community"]].map(([id, label]) => (
+        {[["inbox", "Inbox"], ["broadcasts", "Announcements & Polls"], ["coaching", "Feedback & Recognition"]].map(([id, label]) => (
           <button type="button" className={section === id ? "active" : ""} key={id} onClick={() => setSection(id)}>{label}</button>
         ))}
       </nav>
@@ -233,19 +210,6 @@ function FacultyEngagement({ records, people, onCreate, onUpdate }: Omit<Engagem
         </section>
       )}
 
-      {section === "office" && (
-        <section className="content-grid">
-          <article className="panel"><div className="panel-header"><div><CalendarDays size={20} /><h2>Office Hours</h2><p>Offer short help sessions for students.</p></div></div><form className="form-grid" onSubmit={submitOffice}><label>Session title<input required value={office.title} onChange={(event) => setOffice((value) => ({ ...value, title: event.target.value }))} /></label><label>Start time<input required type="datetime-local" value={office.startsAt} onChange={(event) => setOffice((value) => ({ ...value, startsAt: event.target.value }))} /></label><label>Capacity<input required min="1" type="number" value={office.capacity} onChange={(event) => setOffice((value) => ({ ...value, capacity: event.target.value }))} /></label><button className="button" type="submit">Add slot</button></form><div className="list-stack spaced-list">{slots.map((record) => <RecordRow key={record.id} record={record} people={people} action={<span className="badge">{metadataText(record, "starts_at").replace("T", " ")}</span>} />)}</div></article>
-          <aside className="panel"><h2>Student Bookings</h2><div className="list-stack">{bookings.length === 0 && <Empty title="No bookings" body="Booked office-hour requests will appear here." />}{bookings.map((record) => <RecordRow key={record.id} record={record} people={people} action={record.status === "open" && <button className="button secondary compact" type="button" onClick={() => void onUpdate(record.id, { status: "confirmed" })}>Confirm</button>} />)}</div></aside>
-        </section>
-      )}
-
-      {section === "community" && (
-        <section className="content-grid">
-          <article className="panel"><div className="panel-header"><div><MessageCircle size={20} /><h2>Community and Goals</h2><p>Start a moderated discussion, reply, or shared progress goal.</p></div></div><form className="form-grid" onSubmit={submitCommunity}><label>Type<select value={community.kind} onChange={(event) => setCommunity((value) => ({ ...value, kind: event.target.value as typeof community.kind }))}><option value="discussion">Discussion</option><option value="discussion_reply">Reply</option><option value="goal">Shared goal</option></select></label>{community.kind === "discussion_reply" && <label>Discussion<select required value={community.parentId} onChange={(event) => setCommunity((value) => ({ ...value, parentId: event.target.value }))}><option value="">Select discussion</option>{communityRecords.filter((record) => record.kind === "discussion").map((record) => <option value={record.id} key={record.id}>{record.title}</option>)}</select></label>}<label>Title<input required value={community.title} onChange={(event) => setCommunity((value) => ({ ...value, title: event.target.value }))} /></label><label className="full-width">Details<textarea required value={community.body} onChange={(event) => setCommunity((value) => ({ ...value, body: event.target.value }))} /></label><button className="button" type="submit">Publish</button></form></article>
-          <aside className="panel"><h2>Active Community</h2><div className="list-stack">{communityRecords.length === 0 && <Empty title="No discussions yet" body="Discussions and goals will appear here." />}{communityRecords.map((record) => <RecordRow key={record.id} record={record} people={people} action={record.kind === "discussion_reply" && record.status !== "verified" ? <button className="button secondary compact" type="button" onClick={() => void onUpdate(record.id, { status: "verified" })}>Verify</button> : undefined} />)}</div></aside>
-        </section>
-      )}
     </section>
   );
 }
@@ -254,15 +218,12 @@ function StudentEngagement({ currentUser, records, people, onCreate, onUpdate }:
   const [section, setSection] = useState("support");
   const [help, setHelp] = useState({ title: "", body: "" });
   const [journal, setJournal] = useState({ title: "Today’s learning", body: "", share: true });
-  const [community, setCommunity] = useState({ kind: "discussion" as "discussion" | "discussion_reply" | "goal", parentId: "", title: "", body: "", anonymous: false });
 
   const announcements = records.filter((record) => record.kind === "announcement");
   const pulses = records.filter((record) => record.kind === "pulse");
   const coaching = records.filter((record) => ["feedback", "reminder", "recognition"].includes(record.kind) && record.target_user_id === currentUser.id);
-  const slots = records.filter((record) => record.kind === "office_slot");
   const journals = records.filter((record) => record.kind === "journal" && record.author_id === currentUser.id);
   const requests = records.filter((record) => ["help_request", "check_in"].includes(record.kind) && record.author_id === currentUser.id);
-  const communityRecords = records.filter((record) => ["discussion", "discussion_reply", "goal"].includes(record.kind));
 
   const linkedRecord = (kind: EngagementKind, parentId: string) => records.find((record) => record.kind === kind && record.author_id === currentUser.id && metadataText(record, "parent_id") === parentId);
 
@@ -280,23 +241,17 @@ function StudentEngagement({ currentUser, records, people, onCreate, onUpdate }:
     setJournal({ title: "Today’s learning", body: "", share: true });
   };
 
-  const submitCommunity = async (event: React.FormEvent) => {
-    event.preventDefault();
-    await onCreate({ kind: community.kind, title: community.title, body: community.body, metadata: { parent_id: community.parentId, anonymous: community.anonymous } });
-    setCommunity((value) => ({ ...value, parentId: "", title: "", body: "", anonymous: false }));
-  };
-
   return (
     <section className="engagement-shell">
       <div className="engagement-summary">
         <article><Megaphone size={20} /><strong>{announcements.filter((record) => !linkedRecord("announcement_ack", record.id)).length}</strong><span>Unread updates</span></article>
         <article><MessageCircle size={20} /><strong>{requests.filter((record) => record.status === "open").length}</strong><span>Open requests</span></article>
         <article><Award size={20} /><strong>{coaching.filter((record) => record.kind === "recognition").length}</strong><span>Recognitions</span></article>
-        <article><CalendarDays size={20} /><strong>{slots.length}</strong><span>Help slots</span></article>
+        <article><NotebookPen size={20} /><strong>{journals.length}</strong><span>Journal entries</span></article>
       </div>
 
       <nav className="engagement-tabs" aria-label="Student engagement tools">
-        {[["support", "Check-in & Help"], ["updates", "Updates & Polls"], ["feedback", "Feedback"], ["journal", "Learning Journal"], ["office", "Office Hours"], ["community", "Community"]].map(([id, label]) => <button type="button" className={section === id ? "active" : ""} key={id} onClick={() => setSection(id)}>{label}</button>)}
+        {[["support", "Check-in & Help"], ["updates", "Updates & Polls"], ["feedback", "Feedback"], ["journal", "Learning Journal"]].map(([id, label]) => <button type="button" className={section === id ? "active" : ""} key={id} onClick={() => setSection(id)}>{label}</button>)}
       </nav>
 
       {section === "support" && <section className="content-grid"><article className="panel"><div className="panel-header"><div><HeartHandshake size={20} /><h2>How is your learning going?</h2><p>Your response is shared privately with faculty.</p></div></div><div className="checkin-grid">{["Understood", "Need help", "Stuck"].map((mood) => <button className="button secondary" type="button" key={mood} onClick={() => void checkIn(mood)}>{mood}</button>)}</div><form className="form-grid spaced-form" onSubmit={submitHelp}><label className="full-width">What do you need help with?<input required value={help.title} onChange={(event) => setHelp((value) => ({ ...value, title: event.target.value }))} /></label><label className="full-width">Details<textarea required value={help.body} onChange={(event) => setHelp((value) => ({ ...value, body: event.target.value }))} /></label><button className="button" type="submit"><Send size={16} />Send privately</button></form></article><aside className="panel"><h2>My Requests</h2><div className="list-stack">{requests.length === 0 && <Empty title="No requests" body="Your check-ins and help requests will appear here." />}{requests.map((record) => <RecordRow key={record.id} record={record} people={people} />)}</div></aside></section>}
@@ -307,9 +262,6 @@ function StudentEngagement({ currentUser, records, people, onCreate, onUpdate }:
 
       {section === "journal" && <section className="content-grid"><article className="panel"><div className="panel-header"><div><NotebookPen size={20} /><h2>Learning Journal</h2><p>Record progress, difficulties, and your next step.</p></div></div><form className="form-grid" onSubmit={submitJournal}><label className="full-width">Entry title<input required value={journal.title} onChange={(event)=>setJournal((value)=>({...value,title:event.target.value}))}/></label><label className="full-width">Reflection<textarea required value={journal.body} onChange={(event)=>setJournal((value)=>({...value,body:event.target.value}))}/></label><label className="check-row full-width"><input type="checkbox" checked={journal.share} onChange={(event)=>setJournal((value)=>({...value,share:event.target.checked}))}/>Share with faculty</label><button className="button" type="submit">Save entry</button></form></article><aside className="panel"><h2>Recent Entries</h2><div className="list-stack">{journals.length===0&&<Empty title="No journal entries" body="Your reflections will appear here."/>}{journals.map((record)=><RecordRow key={record.id} record={record} people={people}/>)}</div></aside></section>}
 
-      {section === "office" && <section className="content-grid"><article className="panel"><div className="panel-header"><div><CalendarDays size={20}/><h2>Available Office Hours</h2><p>Book a short faculty help session.</p></div></div><div className="list-stack">{slots.length===0&&<Empty title="No available slots" body="Faculty office hours will appear here."/>}{slots.map((record)=>{const booking=records.find((item)=>item.kind==="office_booking"&&item.author_id===currentUser.id&&metadataText(item,"slot_id")===record.id);return <RecordRow key={record.id} record={record} people={people} action={booking?<span className="badge">{booking.status}</span>:<button className="button secondary compact" type="button" onClick={()=>void onCreate({id:`booking-${record.id}-${currentUser.id}`,kind:"office_booking",targetUserId:record.author_id,title:`Booking: ${record.title}`,body:"Student requested this office-hour slot.",metadata:{slot_id:record.id,starts_at:record.metadata.starts_at}})}>Book</button>}/>;})}</div></article><aside className="panel"><h2>Booking Guidance</h2><p>Use office hours for focused help. Include the topic in a private help request before the meeting.</p></aside></section>}
-
-      {section === "community" && <section className="content-grid"><article className="panel"><div className="panel-header"><div><MessageCircle size={20}/><h2>Join the Community</h2><p>Ask a group question, help a peer, or create a shared progress goal.</p></div></div><form className="form-grid" onSubmit={submitCommunity}><label>Type<select value={community.kind} onChange={(event)=>setCommunity((value)=>({...value,kind:event.target.value as typeof community.kind}))}><option value="discussion">Discussion</option><option value="discussion_reply">Reply to discussion</option><option value="goal">Progress goal</option></select></label>{community.kind === "discussion_reply" && <label>Discussion<select required value={community.parentId} onChange={(event)=>setCommunity((value)=>({...value,parentId:event.target.value}))}><option value="">Select discussion</option>{communityRecords.filter((record)=>record.kind === "discussion").map((record)=><option value={record.id} key={record.id}>{record.title}</option>)}</select></label>}<label>Title<input required value={community.title} onChange={(event)=>setCommunity((value)=>({...value,title:event.target.value}))}/></label><label className="full-width">Details<textarea required value={community.body} onChange={(event)=>setCommunity((value)=>({...value,body:event.target.value}))}/></label><label className="check-row full-width"><input type="checkbox" checked={community.anonymous} onChange={(event)=>setCommunity((value)=>({...value,anonymous:event.target.checked}))}/>Post anonymously</label><button className="button" type="submit">Publish</button></form></article><aside className="panel"><h2>Discussions and Goals</h2><div className="list-stack">{communityRecords.length===0&&<Empty title="No community activity" body="Discussions and shared goals will appear here."/>}{communityRecords.map((record)=><RecordRow key={record.id} record={record} people={people}/>)}</div></aside></section>}
     </section>
   );
 }
