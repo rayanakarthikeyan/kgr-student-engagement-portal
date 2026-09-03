@@ -70,18 +70,7 @@ type Theme = "light" | "dark";
 type NavItem =
   { id: ViewId; label: string; icon: any } | { isHeader: true; label: string };
 
-const studentNavigation: NavItem[] = [
-  { id: "dashboard", label: "Overview", icon: LayoutDashboard },
-  { isHeader: true, label: "OOP Java" },
-  { id: "java-learn", label: "Theory (5 Units)", icon: LibraryBig },
-  { id: "java-lab", label: "Lab (21 Exp)", icon: Braces },
-  { isHeader: true, label: "DBMS" },
-  { id: "dbms-learn", label: "Theory (5 Units)", icon: LibraryBig },
-  { id: "dbms-lab", label: "Lab (10 Exp)", icon: Braces },
-  { isHeader: true, label: "Practice & Exams" },
-  { id: "coursework", label: "Practice", icon: ClipboardList },
-  { id: "assessment", label: "Assessments", icon: ClipboardCheck },
-];
+// studentNavigation is built dynamically in App based on visible courses
 
 const facultyNavigation: NavItem[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
@@ -287,6 +276,56 @@ export default function App() {
   );
 
   const isStudent = session?.user.role === "student";
+  
+  const visibleCourses = useMemo(() => {
+    if (!session || !isStudent) return courses;
+    return courses.filter((course) =>
+      publishedCohorts.some((c) => {
+        if (c.course_id !== course.id) return false;
+        if (c.target_audience === "all") return true;
+        if (c.department && c.department !== session.user.department)
+          return false;
+        if (c.academic_year && c.academic_year !== session.user.year)
+          return false;
+        if (
+          c.sections &&
+          c.sections.length > 0 &&
+          (!session.user.section || !c.sections.includes(session.user.section))
+        )
+          return false;
+        return true;
+      })
+    );
+  }, [session, isStudent, publishedCohorts]);
+
+  const studentNavigation = useMemo(() => {
+    const nav: NavItem[] = [
+      { id: "dashboard", label: "Overview", icon: LayoutDashboard },
+    ];
+    if (visibleCourses.some((c) => c.code === "JAVA")) {
+      nav.push(
+        { isHeader: true, label: "OOP Java" },
+        { id: "java-learn", label: "Theory (5 Units)", icon: LibraryBig },
+        { id: "java-lab", label: "Lab (21 Exp)", icon: Braces }
+      );
+    }
+    if (visibleCourses.some((c) => c.code === "DBMS")) {
+      nav.push(
+        { isHeader: true, label: "DBMS" },
+        { id: "dbms-learn", label: "Theory (5 Units)", icon: LibraryBig },
+        { id: "dbms-lab", label: "Lab (10 Exp)", icon: Braces }
+      );
+    }
+    if (visibleCourses.length > 0) {
+      nav.push(
+        { isHeader: true, label: "Practice & Exams" },
+        { id: "coursework", label: "Practice", icon: ClipboardList },
+        { id: "assessment", label: "Assessments", icon: ClipboardCheck }
+      );
+    }
+    return nav;
+  }, [visibleCourses]);
+
   const navigation = session?.user.role === "admin" ? adminNavigation : (isStudent ? studentNavigation : facultyNavigation);
   const [title, subtitle] = pageTitle(view);
 
@@ -294,26 +333,6 @@ export default function App() {
     if (!session) return null;
     if (view === "admin-dashboard") return <SuperAdminDashboard token={session.token} />;
     if (view === "dashboard") {
-      const visibleCourses = isStudent
-        ? courses.filter((course) =>
-            publishedCohorts.some((c) => {
-              if (c.course_id !== course.id) return false;
-              if (c.target_audience === "all") return true;
-              if (c.department && c.department !== session.user.department)
-                return false;
-              if (c.academic_year && c.academic_year !== session.user.year)
-                return false;
-              if (
-                c.sections &&
-                c.sections.length > 0 &&
-                (!session.user.section || !c.sections.includes(session.user.section))
-              )
-                return false;
-              return true;
-            })
-          )
-        : courses;
-
       return isStudent ? (
         <StudentDashboard
           user={session.user}
