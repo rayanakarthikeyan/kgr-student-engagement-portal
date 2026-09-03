@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Command,
   FileStack,
+  FlaskConical,
   GraduationCap,
   LayoutDashboard,
   LibraryBig,
@@ -23,6 +24,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthScreen } from "./components/AuthScreen";
 import { CourseworkManager } from "./components/CourseworkManager";
 import { FacultyAnalytics } from "./components/FacultyAnalytics";
+import { FacultyLabWorkspace } from "./components/FacultyLabWorkspace";
 import { FacultyResourceManager } from "./components/FacultyResourceManager";
 import { ResourceViewer } from "./components/ResourceViewer";
 import { StudentDashboard } from "./components/StudentDashboard";
@@ -57,6 +59,7 @@ type ViewId =
   | "coursework"
   | "assessment"
   | "resources"
+  | "lab-workspace"
   | "telemetry"
   | "settings";
 type Theme = "light" | "dark";
@@ -81,6 +84,7 @@ const facultyNavigation: NavItem[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { isHeader: true, label: "Course Management" },
   { id: "resources", label: "Theory resources", icon: FileStack },
+  { id: "lab-workspace", label: "Lab Workspace", icon: FlaskConical },
   { id: "coursework", label: "Practice", icon: ClipboardList },
   { id: "assessment", label: "Assessments", icon: ClipboardCheck },
   { id: "telemetry", label: "Student insights", icon: BarChart3 },
@@ -124,6 +128,10 @@ function pageTitle(view: ViewId) {
     resources: [
       "Theory resource manager",
       "Assign YouTube and Drive resources without consuming platform storage.",
+    ],
+    "lab-workspace": [
+      "Lab Workspace",
+      "Publish JAVA and DBMS lab experiments to all enrolled students in one click.",
     ],
     telemetry: [
       "Student insights",
@@ -342,6 +350,8 @@ export default function App() {
           onEvent={emitActivity}
         />
       );
+    if (view === "lab-workspace")
+      return <FacultyLabWorkspace session={session} />;
     if (view === "resources")
       return (
         <FacultyResourceManager
