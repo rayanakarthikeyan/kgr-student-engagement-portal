@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight, Clock3, Printer, Search, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { loadCoursework, loadResourceActivity, loadStudentWork } from "../platform/api";
+import { loadCoursework, loadResourceActivity, loadStudentWork, loadAiChatLogs } from "../platform/api";
 import type { AssignmentRecord, AuthSession, LearningRecord, SessionUser } from "../platform/types";
 import { CohortFilters, matchesCohort } from "./CohortFilters";
 
@@ -24,6 +24,7 @@ export function FacultyAnalytics({ session, compact = false }: { session: AuthSe
   const [details, setDetails] = useState<LearningRecord[]>([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState("");
+  const [aiLogs, setAiLogs] = useState<any[]>([]);
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState("");
   const [section, setSection] = useState("");
@@ -74,7 +75,10 @@ export function FacultyAnalytics({ session, compact = false }: { session: AuthSe
     setDetails([]); setDetailsError("");
     if (!effectiveSelectedId) { setDetailsLoading(false); return; }
     setDetailsLoading(true);
-    void loadStudentWork(session.token, effectiveSelectedId).then(rows => { if (active) setDetails(rows); })
+    void Promise.all([
+      loadStudentWork(session.token, effectiveSelectedId),
+      loadAiChatLogs(session.token, effectiveSelectedId)
+    ]).then(([rows, logs]) => { if (active) { setDetails(rows); setAiLogs(logs); } })
       .catch(caught => { if (active) setDetailsError(caught instanceof Error ? caught.message : "Could not load submissions"); })
       .finally(() => { if (active) setDetailsLoading(false); });
     return () => { active = false; };
@@ -115,6 +119,9 @@ export function FacultyAnalytics({ session, compact = false }: { session: AuthSe
           {detailsLoading && <p className="mt-3 text-xs">Loading submitted work...</p>}{detailsError && <p role="alert" className="mt-3 text-xs text-rose-600">{detailsError}</p>}
           {!detailsLoading && !detailsError && !insight.history.length && <p className="mt-3 text-sm text-[var(--muted)]">No work recorded yet.</p>}
           {details.slice(0, 20).map(record => <details key={record.id} className="border-b border-[var(--line)] py-3"><summary className="cursor-pointer text-sm"><strong className="break-words">{record.title}</strong><span className="mt-1 block text-xs text-[var(--muted)]">{record.status}{record.score != null ? " / " + record.score + " marks" : ""}</span></summary><pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs">{record.body}</pre>{typeof record.metadata.output === "string" && <pre className="mt-3 whitespace-pre-wrap break-words text-xs">{record.metadata.output}</pre>}</details>)}
+          <h4 className="mt-6 text-sm font-semibold">AI Tutor Transcripts</h4>
+          {aiLogs.length === 0 && <p className="mt-3 text-sm text-[var(--muted)]">No AI tutor chats recorded.</p>}
+          {aiLogs.length > 0 && <div className="mt-4 space-y-4">{Array.from(new Set(aiLogs.map(l => l.challenge_id))).map(cid => <details key={cid} className="border border-[var(--line)] rounded-md p-3"><summary className="cursor-pointer text-sm font-medium">Challenge: {cid}</summary><div className="mt-3 space-y-3 max-h-80 overflow-y-auto">{aiLogs.filter(l => l.challenge_id === cid).map(log => <div key={log.id} className={`text-xs p-2 rounded ${log.role === "user" ? "bg-cyan-500/10 ml-4" : "bg-[var(--surface-2)] mr-4"}`}><strong className="block mb-1">{log.role === "user" ? "Student" : "AI"}</strong>{log.content}</div>)}</div></details>)}</div>}
         </> : <div className="empty-panel min-h-48"><Users size={24} />Select a student</div>}
       </aside>
     </div>

@@ -2,9 +2,10 @@ import Editor from "@monaco-editor/react";
 import { AlertCircle, Braces, Check, ChevronDown, Clock3, Code2, FileCode2, History, Lightbulb, LoaderCircle, Play, RotateCcw, Send, TerminalSquare } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useEditorTelemetry } from "../hooks/useEditorTelemetry";
-import { runCode } from "../platform/api";
+import { runCode, aiChat } from "../platform/api";
 import { labChallenges } from "../platform/demo";
 import type { ActivityLog, AuthSession } from "../platform/types";
+import { Sparkles, ArrowUp } from "lucide-react";
 
 interface LabWorkspaceProps { session: AuthSession; onEvent: (event: ActivityLog) => void; theme: "light" | "dark"; }
 
@@ -14,7 +15,10 @@ export function LabWorkspace({ session, onEvent, theme }: LabWorkspaceProps) {
   const [codeByChallenge, setCodeByChallenge] = useState<Record<string, string>>(() => Object.fromEntries(labChallenges.map((item) => [item.id, item.starterCode])));
   const [running, setRunning] = useState(false);
   const [output, setOutput] = useState({ status: "idle" as "idle" | "passed" | "failed" | "error", stdout: "Run your code to see output.", stderr: "", durationMs: 0 });
-  const [bottomTab, setBottomTab] = useState<"output" | "timeline">("output");
+  const [bottomTab, setBottomTab] = useState<"output" | "timeline" | "chat">("output");
+  const [chatHistory, setChatHistory] = useState<{ role: "user" | "model"; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isChatting, setIsChatting] = useState(false);
   const code = codeByChallenge[challenge.id] || challenge.starterCode;
   const telemetry = useEditorTelemetry({ userId: session.user.id, courseId: challenge.courseId, challengeId: challenge.id, onEvent });
 
@@ -35,6 +39,30 @@ export function LabWorkspace({ session, onEvent, theme }: LabWorkspaceProps) {
   const selectChallenge = (id: string) => {
     setChallengeId(id);
     setOutput({ status: "idle", stdout: "Run your code to see output.", stderr: "", durationMs: 0 });
+    setChatHistory([]);
+  };
+
+  const handleSendChat = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!chatInput.trim() || isChatting) return;
+    const message = chatInput.trim();
+    setChatInput("");
+    setChatHistory((curr) => [...curr, { role: "user", content: message }]);
+    setIsChatting(true);
+    try {
+      const response = await aiChat(session.token, {
+        challengeId: challenge.id,
+        code,
+        statement: challenge.statement,
+        history: chatHistory,
+        message,
+      });
+      setChatHistory((curr) => [...curr, { role: "model", content: response }]);
+    } catch (err) {
+      setChatHistory((curr) => [...curr, { role: "model", content: "Sorry, I am currently unavailable or you are offline." }]);
+    } finally {
+      setIsChatting(false);
+    }
   };
 
   return (
@@ -68,8 +96,8 @@ export function LabWorkspace({ session, onEvent, theme }: LabWorkspaceProps) {
           </div>
 
           <div className="min-h-0 bg-[var(--surface)]">
-            <div className="flex h-10 items-center border-b border-[var(--line)] px-3"><button className={`lab-tab ${bottomTab === "output" ? "active" : ""}`} onClick={() => setBottomTab("output")} type="button"><TerminalSquare size={14} />Output</button><button className={`lab-tab ${bottomTab === "timeline" ? "active" : ""}`} onClick={() => setBottomTab("timeline")} type="button"><History size={14} />Attempt timeline <span>{telemetry.timeline.length}</span></button>{output.status !== "idle" && <span className={`ml-auto flex items-center gap-1.5 text-[11px] ${output.status === "passed" ? "text-emerald-600" : "text-rose-600"}`}>{output.status === "passed" ? <Check size={13} /> : <AlertCircle size={13} />}{output.status} · {output.durationMs}ms</span>}</div>
-            {bottomTab === "output" ? <div className="grid h-[calc(100%_-_40px)] min-h-0 md:grid-cols-2"><div className="border-b border-[var(--line)] p-4 md:border-b-0 md:border-r"><p className="terminal-label">Expected output</p><pre className="terminal-output text-[var(--ink)]">{challenge.expectedOutput}</pre></div><div className="p-4"><p className="terminal-label">Actual output</p>{running ? <div className="mt-5 flex items-center gap-2 text-xs text-[var(--accent)]"><LoaderCircle size={15} className="animate-spin" />Compiling and running...</div> : <pre className={`terminal-output ${output.status === "passed" ? "text-emerald-500" : output.status === "idle" ? "text-[var(--muted)]" : "text-rose-500"}`}>{output.stderr || output.stdout}</pre>}</div></div> : <div className="max-h-[240px] overflow-y-auto p-4">{telemetry.timeline.length === 0 ? <div className="grid h-36 place-items-center text-center text-xs text-[var(--muted)]"><span><History size={24} className="mx-auto mb-2" />Run code or paste into the editor to begin the attempt timeline.</span></div> : <div className="space-y-2">{telemetry.timeline.toReversed().map((item) => <div className="flex gap-3 rounded-md border border-[var(--line)] bg-[var(--surface-2)] p-3" key={item.id}><span className={`mt-1 size-2 shrink-0 rounded-full ${item.severity === "success" ? "bg-emerald-500" : item.severity === "error" ? "bg-rose-500" : item.severity === "warning" ? "bg-amber-500" : "bg-slate-400"}`} /><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-xs text-[var(--ink)]">{item.label}</strong><span className="text-[10px] text-[var(--muted)]">{new Date(item.timestamp).toLocaleTimeString()}</span></div><p className="mt-1 truncate text-[11px] text-[var(--muted)]">{item.detail}</p></div></div>)}</div>}</div>}
+            <div className="flex h-10 items-center border-b border-[var(--line)] px-3"><button className={`lab-tab ${bottomTab === "output" ? "active" : ""}`} onClick={() => setBottomTab("output")} type="button"><TerminalSquare size={14} />Output</button><button className={`lab-tab ${bottomTab === "timeline" ? "active" : ""}`} onClick={() => setBottomTab("timeline")} type="button"><History size={14} />Attempt timeline <span>{telemetry.timeline.length}</span></button><button className={`lab-tab ${bottomTab === "chat" ? "active" : ""}`} onClick={() => setBottomTab("chat")} type="button"><Sparkles size={14} className="text-purple-500" />AI Tutor</button>{output.status !== "idle" && <span className={`ml-auto flex items-center gap-1.5 text-[11px] ${output.status === "passed" ? "text-emerald-600" : "text-rose-600"}`}>{output.status === "passed" ? <Check size={13} /> : <AlertCircle size={13} />}{output.status} · {output.durationMs}ms</span>}</div>
+            {bottomTab === "output" ? <div className="grid h-[calc(100%_-_40px)] min-h-0 md:grid-cols-2"><div className="border-b border-[var(--line)] p-4 md:border-b-0 md:border-r"><p className="terminal-label">Expected output</p><pre className="terminal-output text-[var(--ink)]">{challenge.expectedOutput}</pre></div><div className="p-4"><p className="terminal-label">Actual output</p>{running ? <div className="mt-5 flex items-center gap-2 text-xs text-[var(--accent)]"><LoaderCircle size={15} className="animate-spin" />Compiling and running...</div> : <pre className={`terminal-output ${output.status === "passed" ? "text-emerald-500" : output.status === "idle" ? "text-[var(--muted)]" : "text-rose-500"}`}>{output.stderr || output.stdout}</pre>}</div></div> : bottomTab === "timeline" ? <div className="max-h-[240px] overflow-y-auto p-4">{telemetry.timeline.length === 0 ? <div className="grid h-36 place-items-center text-center text-xs text-[var(--muted)]"><span><History size={24} className="mx-auto mb-2" />Run code or paste into the editor to begin the attempt timeline.</span></div> : <div className="space-y-2">{telemetry.timeline.toReversed().map((item) => <div className="flex gap-3 rounded-md border border-[var(--line)] bg-[var(--surface-2)] p-3" key={item.id}><span className={`mt-1 size-2 shrink-0 rounded-full ${item.severity === "success" ? "bg-emerald-500" : item.severity === "error" ? "bg-rose-500" : item.severity === "warning" ? "bg-amber-500" : "bg-slate-400"}`} /><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-xs text-[var(--ink)]">{item.label}</strong><span className="text-[10px] text-[var(--muted)]">{new Date(item.timestamp).toLocaleTimeString()}</span></div><p className="mt-1 truncate text-[11px] text-[var(--muted)]">{item.detail}</p></div></div>)}</div>}</div> : <div className="flex h-[calc(100%_-_40px)] flex-col"><div className="flex-1 overflow-y-auto p-4 space-y-4">{chatHistory.length === 0 ? <div className="flex h-full flex-col items-center justify-center text-center text-[var(--muted)]"><Sparkles size={24} className="mb-2 text-purple-500 opacity-50" /><p className="text-sm">I'm your AI tutor. Ask me about errors, concepts, or hints for this challenge.</p></div> : chatHistory.map((msg, i) => <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}><div className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm ${msg.role === "user" ? "bg-cyan-600 text-white" : "bg-[var(--surface-2)] border border-[var(--line)] text-[var(--ink)]"}`}>{msg.content}</div></div>)}{isChatting && <div className="flex justify-start"><div className="max-w-[85%] rounded-lg bg-[var(--surface-2)] border border-[var(--line)] px-4 py-2.5 text-sm text-[var(--muted)] flex items-center gap-2"><LoaderCircle size={14} className="animate-spin" /> Thinking...</div></div>}</div><form onSubmit={handleSendChat} className="border-t border-[var(--line)] p-2 flex gap-2"><input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Ask a question about your code..." className="h-9 flex-1 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)] outline-none focus:border-cyan-500" /><button type="submit" disabled={isChatting || !chatInput.trim()} className="grid h-9 w-9 place-items-center rounded-md bg-cyan-600 text-white disabled:opacity-50"><ArrowUp size={16} /></button></form></div>}
           </div>
         </section>
       </div>

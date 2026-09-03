@@ -81,6 +81,24 @@ export async function validateSession(token: string): Promise<AuthSession> {
   return { token, user: mapUser(data.user as Record<string, unknown>) };
 }
 
+export async function aiChat(token: string, payload: { challengeId: string; code: string; statement: string; history: { role: "user" | "model"; content: string }[]; message: string }): Promise<string> {
+  const data = await parseResponse(
+    await fetch(`${API_BASE}/api/ai-chat`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(payload),
+    }),
+  );
+  return String(data.response || "");
+}
+
+export async function loadAiChatLogs(token: string, userId: string): Promise<any[]> {
+  const data = await parseResponse(
+    await fetch(`${API_BASE}/api/ai-chat-logs?userId=${userId}`, { headers: authHeaders(token) })
+  );
+  return Array.isArray(data.logs) ? data.logs : [];
+}
+
 export async function registerStudent(input: {
   name: string;
   email: string;
