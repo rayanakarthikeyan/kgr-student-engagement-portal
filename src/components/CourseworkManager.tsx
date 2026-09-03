@@ -302,7 +302,16 @@ export function CourseworkManager({ session, initialType = "all", theme, courseF
         setCourse(item.courseCode); setTrack(item.track); setUnit(item.unit); setSelectedId(item.id);
         setTitle(item.title); setMarks(String(item.suggestedMarks)); setSubjectId(subjectForItem(item, subjects));
         setEditingId(""); setNotice("");
-        if (templates[item.id]) applyTemplate(item, templates[item.id]);
+        if (templates[item.id]) {
+            applyTemplate(item, templates[item.id]);
+        } else {
+            setDescription(item.brief + (workflowType !== "lab" && workMode === "mcq" ? "\n\nAnswer each question. Select one option per question." : ""));
+            setStarterCode("");
+            setExpectedOutput("");
+            setSampleInput("");
+            setHints("");
+            setQuestions([newQuestion()]);
+        }
     };
     const changeMode = (mode: WorkMode) => {
         setWorkMode(mode);
@@ -317,7 +326,10 @@ export function CourseworkManager({ session, initialType = "all", theme, courseF
         if (nextItem)
             chooseItem(nextItem);
     };
+    const nextRef = useRef(false);
     const publish = async (event: React.FormEvent) => { event.preventDefault(); setError(""); setNotice("");
+        const isNext = nextRef.current;
+        nextRef.current = false;
         if (workMode === "mcq" && (questions.length === 0 || questions.some((question) => !question.prompt.trim() || question.options.some((option) => !option.trim())))) {
             setError("Complete every MCQ prompt and all four options before publishing.");
             return;
@@ -337,6 +349,13 @@ export function CourseworkManager({ session, initialType = "all", theme, courseF
         setAssignments((current) => [{ ...assignment, subjects: linkedSubject }, ...current.filter(item => item.id !== assignment.id)]);
         setEditingId("");
         setNotice(`Published ${typeLabel(taskType).toLowerCase()} work to ${assigned} student${assigned === 1 ? "" : "s"}.`);
+        if (isNext && !editingId) {
+            const currentIndex = availableCatalog.findIndex(i => i.id === selected.id);
+            if (currentIndex >= 0 && currentIndex < availableCatalog.length - 1) {
+                chooseItem(availableCatalog[currentIndex + 1]);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+        }
     }
     catch (caught) {
         setError(caught instanceof Error ? caught.message : "Assignment could not be published");
@@ -439,7 +458,7 @@ export function CourseworkManager({ session, initialType = "all", theme, courseF
                         </div>
                         <fieldset>
                             <legend>Student activity</legend>
-                            {taskType === "practice" ? <div className="segmented-control mt-2 w-full"><button className={"flex-1 " + (workMode === "mcq" ? "active" : "")} onClick={() => changeMode("mcq")} type="button"><ListChecks size={14} className="mr-1 inline"/>MCQs</button><button className={"flex-1 " + (workMode === "ide" ? "active" : "")} onClick={() => changeMode("ide")} type="button"><Code2 size={14} className="mr-1 inline"/>IDE question</button></div> : <div className="mt-2 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-4 py-3 text-sm font-semibold">{taskType === "assessment" ? <><ShieldCheck className="mr-2 inline text-amber-600" size={15}/>Proctored MCQ</> : <><Code2 className="mr-2 inline text-cyan-600" size={15}/>{workMode === "response" ? "Design / written experiment" : "IDE experiment"}</>}</div>}
+                            {taskType === "practice" || taskType === "assessment" ? <div className="segmented-control mt-2 w-full"><button className={"flex-1 " + (workMode === "mcq" ? "active" : "")} onClick={() => changeMode("mcq")} type="button"><ListChecks size={14} className="mr-1 inline"/>{taskType === "assessment" ? "Proctored MCQ" : "MCQs"}</button><button className={"flex-1 " + (workMode === "ide" ? "active" : "")} onClick={() => changeMode("ide")} type="button"><Code2 size={14} className="mr-1 inline"/>{taskType === "assessment" ? "Proctored IDE" : "IDE question"}</button></div> : <div className="mt-2 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-4 py-3 text-sm font-semibold"><Code2 className="mr-2 inline text-cyan-600" size={15}/>{workMode === "response" ? "Design / written experiment" : "IDE experiment"}</div>}
                         </fieldset>
                         <div className="mt-5 grid gap-4 sm:grid-cols-2">
                             <label>Deadline<input required min={earliestDeadline} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)}/></label>
@@ -456,7 +475,6 @@ export function CourseworkManager({ session, initialType = "all", theme, courseF
                             <span className="grid size-9 place-items-center rounded-md bg-cyan-500/10 text-cyan-600">{workMode === "mcq" ? <ListChecks size={17}/> : <Code2 size={17}/>}</span>
                             <div><p className="text-[10px] font-bold uppercase tracking-[.14em] text-cyan-600">Step 3</p><h3 className="text-sm font-semibold">{workMode === "mcq" ? "Build questions" : taskType === "lab" ? "Configure experiment workspace" : "Configure IDE question"}</h3></div>
                         </div>
-                        {workMode === "mcq" && <button className="secondary-button" onClick={() => setQuestions((current) => [...current, newQuestion(current.length)])} type="button"><ListChecks size={15}/>Add question</button>}
                     </div>
                     <label className="mb-4 block">Editable task / instructions<textarea className="mt-2 min-h-40 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] p-3 text-sm leading-6" required value={description} onChange={event => setDescription(event.target.value)} /></label>
                     {workMode !== "mcq" && <div className="mb-4 grid gap-4 sm:grid-cols-2">
@@ -464,7 +482,7 @@ export function CourseworkManager({ session, initialType = "all", theme, courseF
                       <label>Execution environment<select value={environment} onChange={event => setEnvironment(event.target.value as "runner" | "external")}><option value="runner">Isolated code runner</option><option value="external">External lab / faculty review</option></select></label>
                     </div>}
                     {taskType !== "assessment" && <label className="mb-4 block">Optional hints (one per line)<textarea className="mt-2 w-full rounded-md border border-[var(--line)] bg-[var(--surface-2)] p-3 text-sm" rows={3} value={hints} onChange={event => setHints(event.target.value)} /></label>}
-                    {workMode === "mcq" ? <div className="space-y-4">{questions.map((question, questionIndex) => <article className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] p-4" key={question.id}><div className="flex items-center gap-3"><strong className="flex-1 text-sm">Question {questionIndex + 1}</strong><label className="w-24">Marks<input min="1" type="number" value={question.marks} onChange={(event) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, marks: Math.max(1, Number(event.target.value)) } : item))}/></label><button className="icon-button" disabled={questions.length === 1} onClick={() => setQuestions((current) => current.filter((item) => item.id !== question.id))} title="Delete question" type="button"><Trash2 size={14}/></button></div><label className="mt-3">Prompt<input placeholder="Enter the question" value={question.prompt} onChange={(event) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, prompt: event.target.value } : item))}/></label><div className="mt-3 grid gap-3 sm:grid-cols-2">{question.options.map((option, optionIndex) => <label key={`${question.id}-option-${optionIndex}`}><span className="flex items-center gap-2"><input checked={question.correctIndex === optionIndex} name={`${question.id}-correct`} onChange={() => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, correctIndex: optionIndex } : item))} type="radio"/>Option {optionIndex + 1}{question.correctIndex === optionIndex && <span className="text-[10px] font-semibold text-emerald-600">Correct</span>}</span><input className="mt-1" placeholder={`Option ${optionIndex + 1}`} value={option} onChange={(event) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, options: item.options.map((value, index) => index === optionIndex ? event.target.value : value) } : item))}/></label>)}</div></article>)}</div> : <div className="grid gap-4 lg:grid-cols-2"><label>Starter code<textarea className="mt-2 min-h-40 w-full resize-y rounded-md border border-[var(--line)] bg-[var(--surface-2)] p-3 font-mono text-xs leading-5 text-[var(--ink)] outline-none focus:border-cyan-500" value={starterCode} onChange={(event) => setStarterCode(event.target.value)}/></label><label>Expected output<textarea className="mt-2 min-h-40 w-full resize-y rounded-md border border-[var(--line)] bg-[var(--surface-2)] p-3 font-mono text-xs leading-5 text-[var(--ink)] outline-none focus:border-cyan-500" placeholder="Enter the expected program or query output" required value={expectedOutput} onChange={(event) => setExpectedOutput(event.target.value)}/></label></div>}
+                    {workMode === "mcq" ? <div className="space-y-4">{questions.map((question, questionIndex) => <article className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] p-4" key={question.id}><div className="flex items-center gap-3"><strong className="flex-1 text-sm">Question {questionIndex + 1}</strong><label className="w-24">Marks<input min="1" type="number" value={question.marks} onChange={(event) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, marks: Math.max(1, Number(event.target.value)) } : item))}/></label><button className="icon-button" disabled={questions.length === 1} onClick={() => setQuestions((current) => current.filter((item) => item.id !== question.id))} title="Delete question" type="button"><Trash2 size={14}/></button></div><label className="mt-3">Prompt<input placeholder="Enter the question" value={question.prompt} onChange={(event) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, prompt: event.target.value } : item))}/></label><div className="mt-3 grid gap-3 sm:grid-cols-2">{question.options.map((option, optionIndex) => <label key={`${question.id}-option-${optionIndex}`}><span className="flex items-center gap-2"><input checked={question.correctIndex === optionIndex} name={`${question.id}-correct`} onChange={() => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, correctIndex: optionIndex } : item))} type="radio"/>Option {optionIndex + 1}{question.correctIndex === optionIndex && <span className="text-[10px] font-semibold text-emerald-600">Correct</span>}</span><input className="mt-1" placeholder={`Option ${optionIndex + 1}`} value={option} onChange={(event) => setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, options: item.options.map((value, index) => index === optionIndex ? event.target.value : value) } : item))}/></label>)}</div></article>)}<div className="flex justify-center mt-4"><button className="secondary-button" onClick={() => setQuestions((current) => [...current, newQuestion(current.length)])} type="button"><ListChecks size={15}/>Add question</button></div></div> : <div className="grid gap-4 lg:grid-cols-2"><label>Starter code<textarea className="mt-2 min-h-40 w-full resize-y rounded-md border border-[var(--line)] bg-[var(--surface-2)] p-3 font-mono text-xs leading-5 text-[var(--ink)] outline-none focus:border-cyan-500" value={starterCode} onChange={(event) => setStarterCode(event.target.value)}/></label><label>Expected output<textarea className="mt-2 min-h-40 w-full resize-y rounded-md border border-[var(--line)] bg-[var(--surface-2)] p-3 font-mono text-xs leading-5 text-[var(--ink)] outline-none focus:border-cyan-500" placeholder="Enter the expected program or query output" required value={expectedOutput} onChange={(event) => setExpectedOutput(event.target.value)}/></label></div>}
                 </section>
 
                 <section className="border-b border-[var(--line)] p-5 sm:p-6">
@@ -512,7 +530,10 @@ export function CourseworkManager({ session, initialType = "all", theme, courseF
                         {notice ? <p className="flex items-center gap-2 text-xs font-semibold text-emerald-600"><Check size={15}/>{notice}</p> : <p className="text-xs text-[var(--muted)]"><strong className="text-[var(--ink)]">{typeLabel(taskType)}:</strong> {selected.title} to {recipientCount} student{recipientCount === 1 ? "" : "s"}</p>}
                         <p className="mt-1 flex items-center gap-2 text-[10px] text-[var(--muted)]"><FileCode2 size={13}/>Source: {selected.source}</p>
                     </div>
-                    <button className="primary-button shrink-0" disabled={publishing || !subjectId || students.length === 0 || recipientCount === 0} type="submit">{publishing ? <LoaderCircle className="animate-spin" size={16}/> : <Send size={16}/>} {students.length === 0 ? "No registered students" : publishing ? "Saving..." : editingId ? "Save changes" : "Enable and publish"}</button>
+                    <div className="flex flex-wrap items-center gap-3">
+                        {!editingId && <button className="secondary-button shrink-0" disabled={publishing || !subjectId || students.length === 0 || recipientCount === 0} onClick={() => nextRef.current = true} type="submit">{publishing ? <LoaderCircle className="animate-spin" size={16}/> : <Send size={16}/>} Publish & Next</button>}
+                        <button className="primary-button shrink-0" disabled={publishing || !subjectId || students.length === 0 || recipientCount === 0} onClick={() => nextRef.current = false} type="submit">{publishing ? <LoaderCircle className="animate-spin" size={16}/> : <Send size={16}/>} {students.length === 0 ? "No registered students" : publishing ? "Saving..." : editingId ? "Save changes" : "Enable and publish"}</button>
+                    </div>
                 </footer>
             </form>
 

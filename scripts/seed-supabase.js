@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as dotenv from "dotenv";
 import { hashPassword } from "../api/_shared.js";
+import ws from "ws";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
@@ -15,7 +16,12 @@ if (!supabaseUrl || !supabaseKey || hasPlaceholder) {
   throw new Error("A real Supabase URL and privileged service key are required");
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: { persistSession: false },
+  realtime: {
+    transport: ws,
+  },
+});
 
 async function seed() {
   const seedData = JSON.parse(readFileSync(resolve("server/db.seed.json"), "utf8"));
@@ -23,13 +29,13 @@ async function seed() {
   console.log("Upserting system accounts without clearing registered users...");
   for (const user of seedData.users) {
     const { password, password_hash: storedHash, ...profile } = user;
-    const { data: existing, error: readError } = await supabase.from("users").select("id").eq("id", user.id).limit(1);
+    const { data: existing, error: readError } = await supabase.from("users").select("id").eq("email", user.email).limit(1);
     if (readError) throw readError;
     const initialPassword = user.role === "faculty" ? process.env.FACULTY_PASSWORD || password : password;
     const passwordHash = storedHash || (initialPassword ? hashPassword(initialPassword) : "");
     if (!existing?.length && !passwordHash) throw new Error(`Set FACULTY_PASSWORD before creating system account ${user.id}`);
     const payload = existing?.length
-      ? { ...profile }
+      ? { ...profile, id: existing[0].id }
       : { ...profile, password: null, password_hash: passwordHash };
     const { error } = await supabase.from("users").upsert(payload);
     if (error) throw new Error(`Error upserting system account: ${error.message}`);
