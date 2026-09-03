@@ -2,7 +2,6 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { _auth, _createClient } from "./_shared.js";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -54,8 +53,12 @@ CRITICAL RULES:
       parts: [{ text: msg.content }],
     }));
 
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      systemInstruction: systemPrompt 
+    });
+
     const chat = model.startChat({
-      systemInstruction: systemPrompt,
       history: chatHistory,
     });
 

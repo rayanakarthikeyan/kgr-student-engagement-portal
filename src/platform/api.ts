@@ -14,6 +14,7 @@ function mapUser(user: Record<string, unknown>): SessionUser {
     batch: user.batch ? String(user.batch) : undefined,
     contactNumber: user.contact_number ? String(user.contact_number) : undefined,
     department: user.department ? String(user.department) : undefined,
+    year: user.year ? String(user.year) : undefined,
     section: user.section ? String(user.section) : undefined,
     college: user.college ? String(user.college) : undefined,
   };
@@ -106,6 +107,7 @@ export async function registerStudent(input: {
   password: string;
   contactNumber: string;
   department: string;
+  year: string;
   section: string;
 }): Promise<AuthSession> {
   const data = await parseResponse(
@@ -288,4 +290,12 @@ export async function saveCourseworkSubmission(token: string, input: {
     }),
   }));
   return data.record as LearningRecord;
+}
+
+export async function bulkAutoGrade(token: string) {
+  const data = await parseResponse(await fetch(`${API_BASE}/api/auto-grade-bulk`, {
+    method: "POST",
+    headers: authHeaders(token),
+  }));
+  return data as { gradedCount: number; message: string };
 }

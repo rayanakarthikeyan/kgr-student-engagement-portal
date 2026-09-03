@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight, Clock3, Printer, Search, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { loadCoursework, loadResourceActivity, loadStudentWork, loadAiChatLogs } from "../platform/api";
+import { loadCoursework, loadResourceActivity, loadStudentWork, loadAiChatLogs, bulkAutoGrade } from "../platform/api";
 import type { AssignmentRecord, AuthSession, LearningRecord, SessionUser } from "../platform/types";
 import { CohortFilters, matchesCohort } from "./CohortFilters";
 
@@ -33,17 +33,41 @@ export function FacultyAnalytics({ session, compact = false }: { session: AuthSe
   const [report, setReport] = useState<"roster" | "student" | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isGrading, setIsGrading] = useState(false);
+  const [gradeMessage, setGradeMessage] = useState("");
 
-  useEffect(() => {
+  const loadData = () => {
     let active = true;
+    setLoading(true);
     void Promise.all([loadCoursework(session.token, true), loadResourceActivity(session.token)]).then(([data, activity]) => {
       if (!active) return;
       setStudents(data.students); setAssignments(data.assignments); setSubmissions(data.submissions);
-      setActivities(activity); setSelectedId(data.students[0]?.id || "");
+      setActivities(activity); 
+      if (!selectedId && data.students.length > 0) setSelectedId(data.students[0].id);
     }).catch(caught => { if (active) setError(caught instanceof Error ? caught.message : "Could not load insights"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
+  };
+
+  useEffect(() => {
+    return loadData();
   }, [session.token]);
+
+  const handleBulkGrade = async () => {
+    setIsGrading(true);
+    setGradeMessage("Evaluating pending submissions with Gemini AI...");
+    try {
+      const response = await bulkAutoGrade(session.token);
+      setGradeMessage(response.message);
+      loadData();
+    } catch (err) {
+      setGradeMessage(err instanceof Error ? err.message : "Auto-grading failed.");
+    } finally {
+      setIsGrading(false);
+      setTimeout(() => setGradeMessage(""), 5000);
+    }
+  };
+
   useEffect(() => { setPage(0); }, [query, department, section]);
 
   const summaries = useMemo(() => {
@@ -99,7 +123,14 @@ export function FacultyAnalytics({ session, compact = false }: { session: AuthSe
   })}</tbody></table>;
 
   return <div className="mx-auto max-w-[1440px] space-y-6">
-    <header className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--line)] pb-5"><div><p className="text-xs text-[var(--muted)]">KG Reddy College of Engineering and Technology</p><h2 className="mt-2 text-2xl font-semibold">{compact ? "Faculty overview" : "Student insights"}</h2></div><button className="secondary-button" disabled={!filtered.length || !!error} onClick={() => setReport("roster")}><Printer size={16} />Print filtered roster</button></header>
+    <header className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--line)] pb-5">
+      <div><p className="text-xs text-[var(--muted)]">KG Reddy College of Engineering and Technology</p><h2 className="mt-2 text-2xl font-semibold">{compact ? "Faculty overview" : "Student insights"}</h2></div>
+      <div className="flex flex-wrap items-center gap-3">
+        {gradeMessage && <span className="text-xs font-medium text-emerald-600">{gradeMessage}</span>}
+        <button className="primary-button" disabled={isGrading || !!error} onClick={handleBulkGrade}>{isGrading ? <Clock3 size={16} className="animate-spin" /> : <Users size={16} />} Auto-Grade Pending</button>
+        <button className="secondary-button" disabled={!filtered.length || !!error} onClick={() => setReport("roster")}><Printer size={16} />Print filtered roster</button>
+      </div>
+    </header>
     {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
     <div className="flex flex-wrap items-end gap-4"><CohortFilters department={department} section={section} onDepartment={setDepartment} onSection={setSection} /><label className="search-control"><Search size={16} /><input aria-label="Search students" value={query} onChange={event => setQuery(event.target.value)} placeholder="Name, roll, email or contact" /></label></div>
     <section className="grid gap-3 sm:grid-cols-3">{[["Students", filtered.length], ["Submitted / assigned", totals.submitted + " / " + totals.assigned], ["Theory study minutes", totals.minutes]].map(([label, value]) => <article className="metric-panel" key={label}><p>{label}</p><strong>{value}</strong></article>)}</section>

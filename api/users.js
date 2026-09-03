@@ -62,7 +62,7 @@ export default async function handler(req, res) {
       const query = getQuery(req);
       let request = supabase
         .from("users")
-        .select("id,name,email,role,title,roll_number,batch,contact_number,department,section,college,is_active,created_at")
+        .select("id,name,email,role,title,roll_number,batch,contact_number,department,year,section,college,is_active,created_at")
         .order("created_at", { ascending: false });
 
       if (actor.role === "faculty") request = request.eq("role", "student");
@@ -100,7 +100,7 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .from("users")
         .insert(payload)
-        .select("id,name,email,role,title,roll_number,batch,contact_number,department,section,college,is_active,created_at")
+        .select("id,name,email,role,title,roll_number,batch,contact_number,department,year,section,college,is_active,created_at")
         .single();
 
       if (error) throw error;
@@ -133,7 +133,7 @@ export default async function handler(req, res) {
         .from("users")
         .update(payload)
         .eq("id", id)
-        .select("id,name,email,role,title,roll_number,batch,contact_number,department,section,college,is_active,created_at")
+        .select("id,name,email,role,title,roll_number,batch,contact_number,department,year,section,college,is_active,created_at")
         .single();
 
       if (error) throw error;
@@ -144,7 +144,7 @@ export default async function handler(req, res) {
       .from("users")
       .delete()
       .eq("id", id)
-      .select("id,name,email,role,title,roll_number,batch,contact_number,department,section,college,is_active,created_at")
+      .select("id,name,email,role,title,roll_number,batch,contact_number,department,year,section,college,is_active,created_at")
       .single();
 
     if (error) throw error;

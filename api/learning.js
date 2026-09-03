@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
   cleanText,
   createSupabaseClient,
@@ -265,12 +266,52 @@ export default async function handler(req, res) {
         if (!Number.isNaN(deadline.getTime()) && Date.now() > deadline.getTime()) return res.status(409).json({ error: "The assignment deadline has passed" });
       }
       const submittedMetadata = metadata(body.metadata);
-      const serverScore = kind === "submission" && submissionAssignment?.work_mode === "mcq" && cleanText(body.status) !== "draft"
+      let serverScore = kind === "submission" && submissionAssignment?.work_mode === "mcq" && cleanText(body.status) !== "draft"
         ? (Array.isArray(submissionAssignment.questions) ? submissionAssignment.questions : []).reduce((sum, question) => {
           const answer = submittedMetadata.answers?.[question.id];
           return sum + (Number.isInteger(answer) && answer === question.correctIndex ? Number(question.marks || 0) : 0);
         }, 0)
         : undefined;
+
+      let finalStatus = cleanText(body.status) || existing?.status || (kind === "submission" ? "submitted" : "active");
+      
+      if (kind === "submission" && finalStatus === "submitted" && submissionAssignment?.work_mode !== "mcq" && process.env.GEMINI_API_KEY) {
+        try {
+          const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+          const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", generationConfig: { responseMimeType: "application/json" } });
+          const maxMarks = submissionAssignment.max_marks || 10;
+          const expectedOutput = submissionAssignment.test_cases?.[0]?.output || "Not provided";
+          const systemPrompt = \`You are an expert Computer Science professor at KG Reddy College of Engineering and Technology.
+Your task is to evaluate a student's submission for an assignment and grade it.
+Assignment Details:
+- Title: \${submissionAssignment.title}
+- Description: \${submissionAssignment.description}
+- Max Marks: \${maxMarks}
+- Expected Output (if applicable): \${expectedOutput}
+Student's Submission:
+\\\`\\\`\\\`
+\${cleanText(body.body) || existing?.body || ""}
+\\\`\\\`\\\`
+Evaluate the submission based on:
+1. Correctness and completeness (Does it solve the problem?)
+2. Structure and logic (Is the code/answer well-organized?)
+3. Edge cases and quality (Did they handle potential issues?)
+Respond with ONLY a valid JSON object matching this schema:
+{
+  "score": number, // Must be between 0 and \${maxMarks}
+  "feedback": "string" // Constructive feedback for the student explaining the grade
+}\`;
+          const result = await model.generateContent(systemPrompt);
+          const evaluation = JSON.parse(result.response.text());
+          serverScore = Math.max(0, Math.min(maxMarks, Number(evaluation.score) || 0));
+          submittedMetadata.faculty_feedback = evaluation.feedback || "Graded automatically by AI.";
+          submittedMetadata.auto_graded = true;
+          finalStatus = "graded";
+        } catch (evalError) {
+          console.error(\`Failed to evaluate submission\`, evalError);
+        }
+      }
+
       const payload = {
         kind,
         author_id: existing?.author_id || actor.id,
@@ -278,7 +319,7 @@ export default async function handler(req, res) {
         assignment_id: assignmentId || existing?.assignment_id || null,
         title: cleanText(body.title) || existing?.title || "",
         body: cleanText(body.body) || existing?.body || "",
-        status: cleanText(body.status) || existing?.status || (kind === "submission" ? "submitted" : "active"),
+        status: finalStatus,
         score: serverScore === undefined ? (actor.role === "student" ? existing?.score ?? null : (body.score === undefined ? existing?.score ?? null : Number(body.score))) : serverScore,
         metadata: { ...metadata(existing?.metadata), ...submittedMetadata },
         updated_at: new Date().toISOString(),

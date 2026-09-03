@@ -11,7 +11,7 @@ export function AuthScreen({ onAuthenticated, theme, onToggleTheme }: AuthScreen
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({ name: "", email: "", rollNumber: "", password: "", contactNumber: "", department: "", section: "" });
+  const [form, setForm] = useState({ name: "", email: "", rollNumber: "", password: "", contactNumber: "", department: "", section: "", year: "" });
 
   const update = (field: keyof typeof form, value: string) => setForm((current) => ({ ...current, [field]: value }));
 
@@ -75,6 +75,7 @@ export function AuthScreen({ onAuthenticated, theme, onToggleTheme }: AuthScreen
                 <label className="auth-label sm:col-span-2">College<span className="mt-2 block rounded-md border border-[var(--line)] bg-[var(--surface)] p-3 text-sm leading-5 text-[var(--ink)]">KG Reddy College of Engineering and Technology</span></label>
                 <label className="auth-label sm:col-span-2">Contact number<span className="auth-input"><input required type="tel" autoComplete="tel" placeholder="10-digit mobile number" maxLength={16} value={form.contactNumber} onChange={(event) => update("contactNumber", event.target.value)} /></span></label>
                 <label className="auth-label">Department<select className="profile-select" required value={form.department} onChange={(event) => update("department", event.target.value)}><option value="">Select department</option>{["CSE", "CSM", "CSD"].map((value) => <option key={value}>{value}</option>)}</select></label>
+                <label className="auth-label">Year<select className="profile-select" required value={form.year} onChange={(event) => update("year", event.target.value)}><option value="">Select year</option>{["1", "2", "3", "4"].map((value) => <option key={value}>{value}</option>)}</select></label>
                 <label className="auth-label">Section<select className="profile-select" required value={form.section} onChange={(event) => update("section", event.target.value)}><option value="">Select section</option>{["A", "B", "C", "D", "E"].map((value) => <option key={value}>{value}</option>)}</select></label>
               </div>}
               {error && <div className="auth-error flex items-start gap-2 rounded-lg border px-3 py-3 text-sm"><CircleAlert size={17} className="mt-0.5 shrink-0" />{error}</div>}
@@ -88,7 +89,7 @@ export function AuthScreen({ onAuthenticated, theme, onToggleTheme }: AuthScreen
               <button className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-cyan-400 px-4 text-sm font-bold text-slate-950 transition hover:bg-cyan-300 disabled:opacity-60" disabled={loading} type="submit">{loading ? "Please wait..." : registering ? "Create account" : "Sign in"}<ArrowRight size={17} /></button>
             </form>
 
-            <p className="mt-7 text-center text-sm text-[var(--muted)]">{registering ? "Already registered?" : "New student?"} <button className="font-semibold text-[var(--accent)]" onClick={() => { setRegistering((value) => !value); setError(""); setForm({ name: "", email: "", rollNumber: "", password: "", contactNumber: "", department: "", section: "" }); }} type="button">{registering ? "Sign in" : "Create an account"}</button></p>
+            <p className="mt-7 text-center text-sm text-[var(--muted)]">{registering ? "Already registered?" : "New student?"} <button className="font-semibold text-[var(--accent)]" onClick={() => { setRegistering((value) => !value); setError(""); setForm({ name: "", email: "", rollNumber: "", password: "", contactNumber: "", department: "", section: "", year: "" }); }} type="button">{registering ? "Sign in" : "Create an account"}</button></p>
           </motion.div>
         </section>
       </div>

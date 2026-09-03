@@ -31,6 +31,7 @@ export interface SessionUser {
   department?: string;
   section?: string;
   college?: string;
+  year?: string;
 }
 
 export interface AuthSession {

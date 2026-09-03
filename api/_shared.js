@@ -333,7 +333,7 @@ function verifySessionToken(token) {
   }
 }
 
-export async function findUserByIdentifier(supabase, identifier, columns = "id,name,email,password,password_hash,role,title,roll_number,batch,contact_number,department,section,college,is_active") {
+export async function findUserByIdentifier(supabase, identifier, columns = "id,name,email,password,password_hash,role,title,roll_number,batch,contact_number,department,year,section,college,is_active") {
   const email = cleanEmail(identifier);
   if (!/^\S+@\S+\.\S+$/.test(email)) return { data: [], error: null };
   return supabase.from("users").select(columns).eq("email", email).limit(1);
@@ -350,7 +350,7 @@ export async function requireUser(supabase, req, allowedRoles = ["admin", "facul
     }
     const { data, error } = await supabase
       .from("users")
-      .select("id,name,email,role,title,roll_number,batch,contact_number,department,section,college,is_active")
+      .select("id,name,email,role,title,roll_number,batch,contact_number,department,year,section,college,is_active")
       .eq("id", claims.sub)
       .limit(1);
     if (error) throw error;
