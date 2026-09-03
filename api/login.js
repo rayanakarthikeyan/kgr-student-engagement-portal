@@ -1,4 +1,4 @@
-import { cleanEmail, cleanText, createSupabaseClient, getBody, handleOptions, methodNotAllowed, safeUser, sendError, setCors } from "./_shared.js";
+import { cleanText, createSupabaseClient, findUserByIdentifier, getBody, handleOptions, methodNotAllowed, safeUser, sendError, setCors } from "./_shared.js";
 
 export default async function handler(req, res) {
   setCors(res, "POST,OPTIONS");
@@ -16,13 +16,7 @@ export default async function handler(req, res) {
     }
 
     const supabase = createSupabaseClient();
-    const emailLower = cleanEmail(email);
-
-    const { data: users, error } = await supabase
-      .from("users")
-      .select("id,name,email,password,role,title,is_active")
-      .eq("email", emailLower)
-      .limit(1);
+    const { data: users, error } = await findUserByIdentifier(supabase, email);
 
     if (error) {
       throw error;

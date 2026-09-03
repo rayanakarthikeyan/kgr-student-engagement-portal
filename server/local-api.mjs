@@ -1,5 +1,6 @@
-import "dotenv/config";
+import * as dotenv from "dotenv";
 import { createServer } from "node:http";
+import { fileURLToPath } from "node:url";
 import health from "../api/health.js";
 import login from "../api/login.js";
 import summary from "../api/summary.js";
@@ -7,6 +8,11 @@ import users from "../api/users.js";
 import subjects from "../api/subjects.js";
 import assignments from "../api/assignments.js";
 import bootstrapAdmin from "../api/bootstrap-admin.js";
+
+dotenv.config({ path: ".env.local" });
+dotenv.config();
+
+process.env.LOCAL_API_SEED_PATH ||= fileURLToPath(new URL("./db.seed.json", import.meta.url));
 
 const HOST = process.env.HOST ?? "127.0.0.1";
 const PORT = Number(process.env.PORT ?? 8787);

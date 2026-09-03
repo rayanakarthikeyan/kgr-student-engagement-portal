@@ -1,6 +1,6 @@
-# KGRCET Learning Portal
+# Faculty Learning Portal
 
-Modern Vite + React + TypeScript frontend for a role-based academic learning platform, with Vercel API functions connected to Supabase.
+Vite + React + TypeScript portal for faculty assignments, quizzes, student monitoring, and role-based account management, with Vercel API functions connected to Supabase.
 
 ## Local Frontend
 
@@ -15,8 +15,6 @@ Open `http://127.0.0.1:5173/login`.
 
 - local Supabase API adapter: `http://127.0.0.1:8787`
 - Vite frontend: `http://127.0.0.1:5173`
-
-For frontend-only local testing, login falls back to the demo credentials if the API is not available.
 
 ## Supabase Setup
 
@@ -53,11 +51,13 @@ If you added sensitive Supabase variables in Vercel, `vercel env pull` may write
 npm run seed:supabase
 ```
 
-Seeded development credential:
+Seeded development credentials:
 
-- Super Admin: `admin@kgr.ac.in` / `admin123`
+- Super Admin: `admin` / `admin123`
+- Faculty: `faculty.demo` / `faculty123`
+- Student: `student.demo` / `student123`
 
-`npm run seed:supabase` clears seeded learning demo data and leaves only the Super Admin account. Use Super Admin to create faculty and student accounts during development.
+`npm run seed:supabase` replaces existing portal data with the local demo seed. Use Super Admin to create additional faculty and student accounts.
 
 ## Local API Testing
 
@@ -84,14 +84,14 @@ PATCH  /api/assignments
 DELETE /api/assignments?id=<assignment-id>
 ```
 
-Write operations require Super Admin credentials and a server-side Supabase service key:
+User management requires Super Admin credentials and a server-side Supabase service key. Faculty credentials can manage student groups, assignments, and quizzes.
 
 ```bash
 curl -X POST http://127.0.0.1:8787/api/users \
   -H "Content-Type: application/json" \
-  -H "X-Admin-Email: admin@kgr.ac.in" \
-  -H "X-Admin-Password: admin123" \
-  -d "{\"name\":\"Faculty Name\",\"email\":\"faculty@kgr.ac.in\",\"password\":\"change-me\",\"role\":\"faculty\",\"title\":\"Faculty\"}"
+  -H "X-User-Email: admin" \
+  -H "X-User-Password: admin123" \
+  -d "{\"name\":\"Faculty Name\",\"email\":\"faculty@learningportal.test\",\"password\":\"change-me\",\"role\":\"faculty\",\"title\":\"Faculty\"}"
 ```
 
 Use `POST /api/bootstrap-admin` only once on an empty database to create the first Super Admin. It requires the server-only `BOOTSTRAP_ADMIN_TOKEN` value in the `X-Bootstrap-Token` header and returns `409` after an admin already exists.

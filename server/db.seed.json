@@ -2,11 +2,30 @@
   "users": [
     {
       "id": "u-admin-001",
-      "name": "K. Uma Shankar",
-      "email": "admin@kgr.ac.in",
+      "name": "admin",
+      "email": "admin@learningportal.test",
       "password": "admin123",
       "role": "admin",
-      "title": "Super Admin"
+      "title": "Super Admin",
+      "is_active": true
+    },
+    {
+      "id": "u-faculty-demo",
+      "name": "Demo Faculty",
+      "email": "faculty.demo@learningportal.test",
+      "password": "faculty123",
+      "role": "faculty",
+      "title": "Faculty",
+      "is_active": true
+    },
+    {
+      "id": "u-student-demo",
+      "name": "Demo Student",
+      "email": "student.demo@learningportal.test",
+      "password": "student123",
+      "role": "student",
+      "title": "Student",
+      "is_active": true
     }
   ],
   "subjects": [],

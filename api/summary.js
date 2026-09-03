@@ -1,4 +1,4 @@
-import { createSupabaseClient, handleOptions, methodNotAllowed, sendError, setCors } from "./_shared.js";
+import { createSupabaseClient, handleOptions, methodNotAllowed, requireAdmin, sendError, setCors } from "./_shared.js";
 
 export default async function handler(req, res) {
   setCors(res, "GET,OPTIONS");
@@ -9,7 +9,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const supabase = createSupabaseClient();
+    const supabase = createSupabaseClient({ requirePrivileged: true });
+    await requireAdmin(supabase, req);
 
     const { data: users, error: usersError } = await supabase
       .from("users")

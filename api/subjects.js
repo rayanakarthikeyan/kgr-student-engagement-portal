@@ -7,7 +7,7 @@ import {
   getQuery,
   handleOptions,
   methodNotAllowed,
-  requireAdmin,
+  requireUser,
   requireFields,
   sendError,
   setCors,
@@ -45,11 +45,12 @@ export default async function handler(req, res) {
   if (handleOptions(req, res)) return;
 
   try {
-    const readClient = createSupabaseClient();
+    const supabase = createSupabaseClient({ requirePrivileged: true });
+    const actor = await requireUser(supabase, req);
 
     if (req.method === "GET") {
       const query = getQuery(req);
-      let request = readClient.from("subjects").select("*").order("name", { ascending: true });
+      let request = supabase.from("subjects").select("*").order("name", { ascending: true });
 
       if (query.type) request = request.eq("type", cleanText(query.type));
       if (query.semester) request = request.eq("semester", cleanText(query.semester));
@@ -65,8 +66,11 @@ export default async function handler(req, res) {
       return methodNotAllowed(res);
     }
 
-    const supabase = createSupabaseClient({ requirePrivileged: true });
-    await requireAdmin(supabase, req);
+    if (!["admin", "faculty"].includes(actor.role)) {
+      const error = new Error("Only faculty or a Super Admin can manage student groups");
+      error.statusCode = 403;
+      throw error;
+    }
 
     if (req.method === "POST") {
       const body = getBody(req);

@@ -78,7 +78,7 @@ async function seed() {
     if (error) throw new Error(`Error inserting assignment: ${error.message}`);
   }
 
-  console.log("Seed completed. Only the Super Admin account is present.");
+  console.log("Seed completed. Super Admin, faculty demo, and student demo accounts are present.");
 }
 
 seed().catch(console.error);

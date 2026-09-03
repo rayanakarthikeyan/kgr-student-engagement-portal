@@ -46,8 +46,8 @@ export default async function handler(req, res) {
     const body = getBody(req);
     const payload = {
       id: cleanText(body.id) || "u-admin-001",
-      name: cleanText(body.name) || "K. Uma Shankar",
-      email: cleanEmail(body.email) || "admin@kgr.ac.in",
+      name: cleanText(body.name) || "admin",
+      email: cleanEmail(body.email) || "admin@learningportal.test",
       password: cleanText(body.password) || "admin123",
       role: "admin",
       title: cleanText(body.title) || "Super Admin",

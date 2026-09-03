@@ -1,4 +1,4 @@
--- Schema for KGR Student Engagement Portal
+-- Schema for Faculty Learning Portal
 
 -- Users table
 CREATE TABLE IF NOT EXISTS public.users (

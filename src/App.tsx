@@ -3,56 +3,101 @@ import {
   CircleAlert,
   BarChart3,
   BookOpen,
-  CheckCircle2,
-  ChevronRight,
   ClipboardList,
   FileText,
   GraduationCap,
   LayoutDashboard,
-  Library,
   LogOut,
   KeyRound,
   Mail,
-  MessageSquare,
   Search,
   Settings,
   UserCheck,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  activities,
-  doubts,
-  resources,
   roleConfig,
   roleProfiles,
   studentProfiles,
-  subjects,
   type RoleId,
   type Subject,
   type SubjectType,
   type ViewId,
 } from "./data";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
-const navigation: { id: ViewId; label: string; icon: React.ElementType }[] = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "workspace", label: "Workspace", icon: BookOpen },
-  { id: "resources", label: "Resources", icon: Library },
-  { id: "activities", label: "Activities", icon: ClipboardList },
-  { id: "engagement", label: "Doubts & Discussion", icon: MessageSquare },
-  { id: "analytics", label: "Learning Analytics", icon: BarChart3 },
-  { id: "settings", label: "Settings", icon: Settings },
-];
+interface ApiUser {
+  id: string;
+  name: string;
+  email: string;
+  role: RoleId;
+  title?: string;
+  is_active?: boolean;
+  created_at?: string;
+}
+
+interface ApiSubject {
+  id: string;
+  name: string;
+  type: SubjectType;
+  semester: string;
+  section: string;
+  department?: string;
+  academic_year?: string;
+  is_active?: boolean;
+}
+
+interface ApiAssignment {
+  id: string;
+  title: string;
+  subject_id: string;
+  due_date: string;
+  assigned: number;
+  submitted: number;
+  pending: number;
+  reviewed: number;
+  subjects?: Pick<ApiSubject, "name" | "type" | "semester" | "section"> | null;
+}
+
+interface SessionAuth {
+  email: string;
+  password: string;
+}
+
+interface PortalData {
+  users: ApiUser[];
+  subjects: ApiSubject[];
+  assignments: ApiAssignment[];
+}
+
+const navigationByRole: Record<RoleId, { id: ViewId; label: string; icon: React.ElementType }[]> = {
+  admin: [
+    { id: "overview", label: "Dashboard", icon: LayoutDashboard },
+    { id: "settings", label: "Manage Users", icon: Settings },
+  ],
+  faculty: [
+    { id: "overview", label: "Dashboard", icon: LayoutDashboard },
+    { id: "workspace", label: "Student Groups", icon: BookOpen },
+    { id: "resources", label: "Students", icon: GraduationCap },
+    { id: "activities", label: "Assignments & Quizzes", icon: ClipboardList },
+    { id: "analytics", label: "Time Monitor", icon: BarChart3 },
+  ],
+  student: [
+    { id: "overview", label: "Dashboard", icon: LayoutDashboard },
+    { id: "activities", label: "My Assignments & Quizzes", icon: ClipboardList },
+    { id: "analytics", label: "My Learning Time", icon: BarChart3 },
+  ],
+};
 
 const analytics = [
   ["Assignment completion", 0],
-  ["Lab task completion", 0],
+  ["Quiz completion", 0],
   ["Quiz performance", 0],
-  ["Resource usage", 0],
-  ["Resolved doubts", 0],
-  ["AI dependency awareness", 0],
+  ["Average learning time", 0],
+  ["Low activity students", 0],
+  ["Pending reviews", 0],
 ] as const;
 
 interface AssignmentCardData {
@@ -66,7 +111,50 @@ interface AssignmentCardData {
   progress: number;
 }
 
-const assignmentCards: AssignmentCardData[] = [];
+function toSubjectCard(subject: ApiSubject): Subject {
+  return {
+    name: subject.name,
+    type: subject.type,
+    semester: subject.semester,
+    section: subject.section,
+    faculty: "",
+    progress: 0,
+    pending: 0,
+    doubtCount: 0,
+    risk: "Low",
+  };
+}
+
+function toAssignmentCard(assignment: ApiAssignment, subjectName = "Unassigned"): AssignmentCardData {
+  const assigned = assignment.assigned || 0;
+  const submitted = assignment.submitted || 0;
+  const progress = assigned > 0 ? Math.round((submitted / assigned) * 100) : 0;
+
+  return {
+    title: assignment.title,
+    subject: assignment.subjects?.name ?? subjectName,
+    due: assignment.due_date,
+    assigned,
+    submitted,
+    pending: assignment.pending || 0,
+    reviewed: assignment.reviewed || 0,
+    progress,
+  };
+}
+
+function todayDateInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function accountLabel(user: ApiUser) {
+  return user.email.split("@")[0] || user.name;
+}
+
+function workTypeLabel(type: SubjectType) {
+  if (type === "Theory Only") return "Assignments only";
+  if (type === "Lab Only") return "Quizzes only";
+  return "Assignments + quizzes";
+}
 
 function badgeClass(value: SubjectType | Subject["risk"] | string) {
   if (value === "Lab Only") return "lab";
@@ -76,22 +164,17 @@ function badgeClass(value: SubjectType | Subject["risk"] | string) {
   return "";
 }
 
-function LoginScreen({ onLogin }: { onLogin: (role: RoleId, name?: string) => void }) {
-  const [email, setEmail] = useState("admin@kgr.ac.in");
+function LoginScreen({ onLogin }: { onLogin: (role: RoleId, auth: SessionAuth, name?: string) => void }) {
+  const [email, setEmail] = useState("admin");
   const [password, setPassword] = useState("admin123");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
-  const credentials: Record<string, { password: string; role: RoleId }> = {
-    "admin@kgr.ac.in": { password: "admin123", role: "admin" },
-  };
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
 
     const normalizedEmail = email.trim().toLowerCase();
-    const match = credentials[normalizedEmail];
 
     if (!normalizedEmail || !password) {
       setError("Please fill in all fields");
@@ -114,18 +197,10 @@ function LoginScreen({ onLogin }: { onLogin: (role: RoleId, name?: string) => vo
       }
 
       setIsLoading(false);
-      onLogin(data.user.role, data.user.name);
+      onLogin(data.user.role, { email: normalizedEmail, password }, data.user.name);
     } catch (error) {
-      if (!match || match.password !== password) {
-        setError(error instanceof Error ? error.message : "Invalid email or password");
-        setIsLoading(false);
-        return;
-      }
-
-      window.setTimeout(() => {
-        setIsLoading(false);
-        onLogin(match.role);
-      }, 250);
+      setError(error instanceof TypeError ? "Unable to connect to the portal server" : error instanceof Error ? error.message : "Invalid email or password");
+      setIsLoading(false);
     }
   };
 
@@ -137,8 +212,8 @@ function LoginScreen({ onLogin }: { onLogin: (role: RoleId, name?: string) => vo
           <span className="wing wing-right" />
         </div>
         <div className="login-heading">
-          <h1 id="loginTitle">KG Reddy College</h1>
-          <p>Data Structures Programming Assignment Portal</p>
+          <h1 id="loginTitle">Learning Portal</h1>
+          <p>Faculty Assignment, Quiz, and Student Monitoring Portal</p>
         </div>
 
         <form className="login-panel login-form glass-panel animate-slide-up" onSubmit={handleLogin}>
@@ -151,12 +226,12 @@ function LoginScreen({ onLogin }: { onLogin: (role: RoleId, name?: string) => vo
             </div>
           )}
           <label>
-            Email Address
+            Email or Account Name
             <span className="login-input">
               <Mail size={19} />
               <input
-                type="email"
-                placeholder="rollnum@kgr.ac.in"
+                type="text"
+                placeholder="admin or name@example.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 disabled={isLoading}
@@ -179,6 +254,14 @@ function LoginScreen({ onLogin }: { onLogin: (role: RoleId, name?: string) => vo
           <button className="button login-button" type="submit">
             {isLoading ? "Authenticating..." : "Sign In"}
           </button>
+          <div className="demo-login-actions" aria-label="Demo accounts">
+            <button className="button secondary" type="button" onClick={() => { setEmail("faculty.demo"); setPassword("faculty123"); }}>
+              Faculty demo
+            </button>
+            <button className="button secondary" type="button" onClick={() => { setEmail("student.demo"); setPassword("student123"); }}>
+              Student demo
+            </button>
+          </div>
         </form>
       </section>
     </main>
@@ -232,25 +315,30 @@ function AnalyticsBars() {
   );
 }
 
-function PortalKpis({ role }: { role: RoleId }) {
+function PortalKpis({ role, data }: { role: RoleId; data: PortalData }) {
+  const studentCount = data.users.filter((user) => user.role === "student").length;
+  const facultyCount = data.users.filter((user) => user.role === "faculty").length;
+  const inactiveCount = data.users.filter((user) => user.is_active === false).length;
+  const submittedCount = data.assignments.reduce((total, assignment) => total + (assignment.submitted || 0), 0);
+
   const values = {
     admin: [
-      ["Active Classrooms", "0", "Create classrooms", BookOpen],
-      ["Enrolled Students", "0", "Create student accounts", UsersIcon],
-      ["Submitted", "0", "No submissions yet", ClipboardList],
-      ["Avg AI Engagement", "0%", "No AI usage yet", Activity],
+      ["Total Accounts", String(data.users.length), "Portal users", UserCheck],
+      ["Faculty", String(facultyCount), "Faculty accounts", Activity],
+      ["Students", String(studentCount), "Student accounts", UsersIcon],
+      ["Inactive", String(inactiveCount), "Disabled accounts", Settings],
     ],
     faculty: [
-      ["Active Tasks", "0", "No tasks yet", ClipboardList],
-      ["Enrolled Students", "0", "No students yet", UsersIcon],
-      ["Submitted", "0", "No submissions yet", FileText],
-      ["Avg AI Engagement", "0%", "No AI usage yet", Activity],
+      ["Active Tasks", String(data.assignments.length), "Learning tasks", ClipboardList],
+      ["Enrolled Students", String(studentCount), "Student accounts", UsersIcon],
+      ["Submitted", String(submittedCount), "Recorded submissions", FileText],
+      ["Learning Time", "0 min", "No time tracked yet", BarChart3],
     ],
     student: [
-      ["Pending Work", "0", "No tasks yet", ClipboardList],
-      ["Enrolled Subjects", "0", "No subjects yet", BookOpen],
-      ["Submitted", "0", "No submissions yet", FileText],
-      ["Practice Growth", "0%", "No practice data yet", Activity],
+      ["Pending Work", String(data.assignments.length), "Available tasks", ClipboardList],
+      ["Assigned Groups", String(data.subjects.length), "Learning groups", BookOpen],
+      ["Submitted", String(submittedCount), "Recorded submissions", FileText],
+      ["Learning Time", "0 min", "No time tracked yet", BarChart3],
     ],
   } as const;
 
@@ -276,19 +364,57 @@ function UsersIcon({ size = 24 }: { size?: number }) {
   return <GraduationCap size={size} />;
 }
 
-function AssignmentWorkbench({ role }: { role: RoleId }) {
-  const [selectedAssignment, setSelectedAssignment] = useState<AssignmentCardData | null>(assignmentCards[0] ?? null);
+function AssignmentWorkbench({
+  role,
+  assignments,
+  subjects: subjectRows,
+  onCreateAssignment,
+}: {
+  role: RoleId;
+  assignments: ApiAssignment[];
+  subjects: ApiSubject[];
+  onCreateAssignment: (body: Record<string, string | number>) => Promise<void>;
+}) {
+  const canManage = role === "faculty";
+  const cards = assignments.map((assignment) => toAssignmentCard(assignment, subjectRows.find((subject) => subject.id === assignment.subject_id)?.name));
+  const [selectedAssignmentTitle, setSelectedAssignmentTitle] = useState(cards[0]?.title ?? "");
   const [localQuery, setLocalQuery] = useState("");
-  const filtered = assignmentCards.filter((item) => item.title.toLowerCase().includes(localQuery.toLowerCase()));
+  const [draft, setDraft] = useState({ title: "", subjectId: subjectRows[0]?.id ?? "", dueDate: todayDateInputValue(), assigned: "0" });
+  const selectedAssignment = cards.find((assignment) => assignment.title === selectedAssignmentTitle) ?? cards[0] ?? null;
+  const filtered = cards.filter((item) => item.title.toLowerCase().includes(localQuery.toLowerCase()));
+
+  useEffect(() => {
+    if (!selectedAssignmentTitle && cards[0]) setSelectedAssignmentTitle(cards[0].title);
+    if (!draft.subjectId && subjectRows[0]) setDraft((current) => ({ ...current, subjectId: subjectRows[0].id }));
+  }, [cards, draft.subjectId, selectedAssignmentTitle, subjectRows]);
+
+  const submitAssignment = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const subjectId = draft.subjectId || subjectRows[0]?.id;
+    if (!subjectId) return;
+
+    await onCreateAssignment({
+      title: draft.title,
+      subjectId,
+      dueDate: draft.dueDate || todayDateInputValue(),
+      assigned: Number(draft.assigned),
+      submitted: 0,
+      pending: Number(draft.assigned),
+      reviewed: 0,
+    });
+    setDraft({ title: "", subjectId: subjectRows[0]?.id ?? "", dueDate: todayDateInputValue(), assigned: "0" });
+  };
 
   return (
     <section className="workbench-grid">
       <aside className="assignment-rail">
         <div className="rail-header">
           <h2>{role === "student" ? "My Activities" : "Assignments"}</h2>
-          <button className="button compact" type="button">
-            + New
-          </button>
+          {canManage && (
+            <button className="button compact" type="button" onClick={() => document.getElementById("assignmentTitle")?.focus()}>
+              + New
+            </button>
+          )}
         </div>
         <label className="search-box rail-search">
           <Search size={18} />
@@ -298,8 +424,8 @@ function AssignmentWorkbench({ role }: { role: RoleId }) {
         <div className="assignment-list">
           {filtered.length === 0 && (
             <div className="empty-state">
-              <h3>No activities yet</h3>
-              <p>Create the first assignment, quiz, or lab task after setting up subjects and classrooms.</p>
+              <h3>No tasks yet</h3>
+              <p>{canManage ? "Create the first assignment or quiz for a student group." : "Your assigned work will appear here."}</p>
             </div>
           )}
           {filtered.map((assignment) => (
@@ -307,11 +433,11 @@ function AssignmentWorkbench({ role }: { role: RoleId }) {
               className={`assignment-card ${selectedAssignment?.title === assignment.title ? "selected" : ""}`}
               type="button"
               key={assignment.title}
-              onClick={() => setSelectedAssignment(assignment)}
+              onClick={() => setSelectedAssignmentTitle(assignment.title)}
             >
               <div className="assignment-title-row">
                 <h3>{assignment.title}</h3>
-                <span className="edit-link">Edit</span>
+                {canManage && <span className="edit-link">Edit</span>}
               </div>
               <div className="assignment-meta">
                 <span>{assignment.subject}</span>
@@ -344,16 +470,13 @@ function AssignmentWorkbench({ role }: { role: RoleId }) {
       </aside>
 
       <article className="submission-panel">
-        <p className="eyebrow">Submission workspace</p>
+        <p className="eyebrow">{canManage ? "Submission workspace" : "Activity details"}</p>
         {selectedAssignment ? (
           <>
             <h2>{selectedAssignment.title}</h2>
-            <p>
-              Review submissions, feedback, weak topics, AI assistance patterns, and pending students for this learning
-              activity.
-            </p>
+            <p>{canManage ? "Review submissions, completion, pending students, and time spent for this assignment or quiz." : "View the due date, status, and details for this assignment or quiz."}</p>
             <select aria-label="Choose assignment">
-              {assignmentCards.map((assignment) => (
+              {cards.map((assignment) => (
                 <option key={assignment.title}>{assignment.title} with {assignment.submitted} submissions</option>
               ))}
             </select>
@@ -378,13 +501,48 @@ function AssignmentWorkbench({ role }: { role: RoleId }) {
           </>
         ) : (
           <div className="empty-state large">
-            <h2>Select or create an activity</h2>
-            <p>No assignments, lab tasks, quizzes, or practice tests have been created yet.</p>
-            <button className="button" type="button">
-              Create activity
-            </button>
+            <h2>{canManage ? "Select or create a task" : "No assigned work"}</h2>
+            <p>{canManage ? "No assignments or quizzes have been created yet." : "New assignments and quizzes will appear here."}</p>
           </div>
         )}
+        {canManage && <form className="form-grid inline-form" onSubmit={submitAssignment}>
+          <label>
+            Task title
+            <input
+              id="assignmentTitle"
+              required
+              value={draft.title}
+              onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
+              placeholder="Weekly coding assignment or quiz"
+            />
+          </label>
+          <label>
+            Student group
+            <select required value={draft.subjectId} onChange={(event) => setDraft((current) => ({ ...current, subjectId: event.target.value }))}>
+              <option value="" disabled>
+                Create a student group first
+              </option>
+              {subjectRows.map((subject) => (
+                <option value={subject.id} key={subject.id}>
+                  {subject.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Due date
+            <input required type="date" value={draft.dueDate} onChange={(event) => setDraft((current) => ({ ...current, dueDate: event.target.value }))} />
+          </label>
+          <label>
+            Assigned count
+            <input required min="0" type="number" value={draft.assigned} onChange={(event) => setDraft((current) => ({ ...current, assigned: event.target.value }))} />
+          </label>
+          <div className="actions full-width">
+            <button className="button" type="submit" disabled={subjectRows.length === 0}>
+              Create assignment / quiz
+            </button>
+          </div>
+        </form>}
       </article>
     </section>
   );
@@ -393,26 +551,26 @@ function AssignmentWorkbench({ role }: { role: RoleId }) {
 function moduleCards(type: SubjectType) {
   return [
     [
-      "Theory Units",
-      "Notes, PPTs, videos, important questions, previous practice questions, and unit discussions.",
+      "Assignments",
+      "Create, assign, and track submitted or pending assignments for this group.",
       type !== "Lab Only",
       FileText,
     ],
     [
-      "Lab Experiments",
-      "Aim, concept, procedure, algorithm, sample output, submissions, viva practice, and feedback.",
+      "Quizzes",
+      "Create quick checks, score quiz attempts, and identify students who need follow-up.",
       type !== "Theory Only",
       Activity,
     ],
     [
-      "Activities",
-      "MCQ, short answer, written assignment, coding, SQL, file upload, mini project, and practice test.",
+      "Submissions",
+      "Review submitted work, pending students, scores, feedback, and reattempts.",
       true,
       ClipboardList,
     ],
     [
-      "Student Progress",
-      "Completion, repeated attempts, weak topics, resource usage, feedback history, and AI usage trend.",
+      "Learning Time",
+      "Monitor platform time, inactive students, and repeated low-engagement patterns.",
       true,
       BarChart3,
     ],
@@ -420,41 +578,50 @@ function moduleCards(type: SubjectType) {
 }
 
 function Workspace({
-  role,
+  subjects: subjectRows,
   selectedSubject,
   setSelectedSubject,
   onOpen,
+  onCreateSubject,
 }: {
-  role: RoleId;
+  subjects: ApiSubject[];
   selectedSubject: number;
   setSelectedSubject: (index: number) => void;
   onOpen: (subject: Subject) => void;
+  onCreateSubject: (body: Record<string, string>) => Promise<void>;
 }) {
-  const subject = subjects[selectedSubject];
+  const subjectCards = subjectRows.map(toSubjectCard);
+  const subject = subjectCards[selectedSubject];
+  const [draft, setDraft] = useState({ name: "", type: "Theory + Lab" as SubjectType, semester: "", section: "" });
+
+  const submitSubject = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await onCreateSubject(draft);
+    setDraft({ name: "", type: "Theory + Lab", semester: "", section: "" });
+  };
+
   if (!subject) {
     return (
       <section className="workspace-layout">
         <article className="panel">
           <div className="panel-header">
             <div>
-              <h2>{role === "admin" ? "Academic Setup" : "Subject Workspaces"}</h2>
-              <p>Supports theory-only, lab-only, and theory-plus-lab classrooms.</p>
+              <h2>Student Groups</h2>
+              <p>Create only the groups faculty need for assigning and monitoring work.</p>
             </div>
           </div>
           <div className="empty-state">
-            <h3>No subjects yet</h3>
-            <p>Create departments, semesters, subjects, and classrooms to begin.</p>
+            <h3>No student groups yet</h3>
+            <p>Create a group such as CSE A or Python Batch 1 to assign work.</p>
           </div>
         </article>
 
         <article className="panel">
           <div className="empty-state large">
-            <h2>No workspace selected</h2>
-            <p>Subject workspaces will appear here after Super Admin creates academic setup data.</p>
-            <button className="button" type="button">
-              Create subject
-            </button>
+            <h2>No group selected</h2>
+            <p>Student groups will appear here after they are created.</p>
           </div>
+          <SubjectForm draft={draft} setDraft={setDraft} onSubmit={submitSubject} />
         </article>
       </section>
     );
@@ -465,11 +632,11 @@ function Workspace({
       <article className="panel">
         <div className="panel-header">
           <div>
-            <h2>{role === "admin" ? "Academic Setup" : "Subject Workspaces"}</h2>
-            <p>Supports theory-only, lab-only, and theory-plus-lab classrooms.</p>
+            <h2>Student Groups</h2>
+            <p>Assign tasks and quizzes to these groups, then monitor submissions and time spent.</p>
           </div>
         </div>
-        {subjects.map((item, index) => (
+        {subjectCards.map((item, index) => (
           <button
             className={`subject-card ${index === selectedSubject ? "selected" : ""}`}
             key={item.name}
@@ -480,7 +647,7 @@ function Workspace({
             <p>
               {item.semester} / {item.section}
             </p>
-            <span className={`badge ${badgeClass(item.type)}`}>{item.type}</span>
+            <span className={`badge ${badgeClass(item.type)}`}>{workTypeLabel(item.type)}</span>
           </button>
         ))}
       </article>
@@ -490,25 +657,25 @@ function Workspace({
           <div>
             <h2>{subject.name}</h2>
             <p>
-              {subject.type} workspace for {subject.semester} {subject.section}
+              Assignment and monitoring group for {subject.semester} {subject.section}
             </p>
           </div>
           <button className="button" type="button" onClick={() => onOpen(subject)}>
-            Open detail
+            Open group
           </button>
         </div>
         <div className="tabs">
           <button className="tab-button active" type="button">
-            Theory units
+            Assignments
           </button>
           <button className="tab-button" type="button">
-            Lab tasks
+            Quizzes
           </button>
           <button className="tab-button" type="button">
-            Resources
+            Submissions
           </button>
           <button className="tab-button" type="button">
-            Progress
+            Time spent
           </button>
         </div>
         <div className="module-grid">
@@ -525,41 +692,83 @@ function Workspace({
               </div>
             ))}
         </div>
+        <SubjectForm draft={draft} setDraft={setDraft} onSubmit={submitSubject} />
       </article>
     </section>
   );
 }
 
-function Resources({ role }: { role: RoleId }) {
+function SubjectForm({
+  draft,
+  setDraft,
+  onSubmit,
+}: {
+  draft: { name: string; type: SubjectType; semester: string; section: string };
+  setDraft: React.Dispatch<React.SetStateAction<{ name: string; type: SubjectType; semester: string; section: string }>>;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form className="form-grid inline-form" onSubmit={onSubmit}>
+      <label>
+        Group name
+        <input required value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="CSE A or Python Batch 1" />
+      </label>
+      <label>
+        Work type
+        <select value={draft.type} onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value as SubjectType }))}>
+          <option value="Theory Only">Assignments only</option>
+          <option value="Lab Only">Quizzes only</option>
+          <option value="Theory + Lab">Assignments + quizzes</option>
+        </select>
+      </label>
+      <label>
+        Group label
+        <input required value={draft.semester} onChange={(event) => setDraft((current) => ({ ...current, semester: event.target.value }))} placeholder="Batch 2026" />
+      </label>
+      <label>
+        Section or batch
+        <input required value={draft.section} onChange={(event) => setDraft((current) => ({ ...current, section: event.target.value }))} placeholder="Group A" />
+      </label>
+      <div className="actions full-width">
+        <button className="button" type="submit">
+          Create group
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function Resources({ role, users }: { role: RoleId; users: ApiUser[] }) {
+  const students = users.filter((user) => user.role === "student");
+
   return (
     <section className="panel">
       <div className="panel-header">
         <div>
-          <h2>Resource Library</h2>
-          <p>Reusable PDFs, PPTs, images, videos, links, datasets, SQL schemas, starter files, sample programs, and lab manuals.</p>
+          <h2>Students</h2>
+          <p>Students added here can receive assignments and quizzes from faculty.</p>
         </div>
-        <button className="button" type="button">
-          Upload resource
+        <button className="button" type="button" onClick={() => document.querySelector<HTMLInputElement>('input[placeholder="Student or faculty name"]')?.focus()}>
+          Add student
         </button>
       </div>
       <FilterBar role={role} />
       <div className="list-stack">
-        {resources.length === 0 && (
+        {students.length === 0 && (
           <div className="empty-state">
-            <h3>No resources yet</h3>
-            <p>Uploaded PDFs, PPTs, links, videos, datasets, and starter files will appear here.</p>
+            <h3>No students yet</h3>
+            <p>Create student accounts from the Accounts tab to begin assigning work.</p>
           </div>
         )}
-        {resources.map(([name, type, place, status, usage]) => (
-          <div className="list-row" key={name}>
+        {students.map((student) => (
+          <div className="list-row" key={student.id}>
             <div>
-              <h3>{name}</h3>
-              <p>{place}</p>
+              <h3>{student.name}</h3>
+              <p>{accountLabel(student)}</p>
             </div>
             <div className="actions">
-              <span className="badge">{type}</span>
-              <span className={`badge ${badgeClass(status)}`}>{status}</span>
-              <span className="muted">{usage}</span>
+              <span className="badge">Student</span>
+              <span className="muted">{student.is_active === false ? "Inactive" : "Active"}</span>
             </div>
           </div>
         ))}
@@ -568,17 +777,21 @@ function Resources({ role }: { role: RoleId }) {
   );
 }
 
-function Activities({ role }: { role: RoleId }) {
+function Activities({ role, assignments, subjects: subjectRows, onCreateAssignment }: { role: RoleId; assignments: ApiAssignment[]; subjects: ApiSubject[]; onCreateAssignment: (body: Record<string, string | number>) => Promise<void> }) {
+  const cards = assignments.map((assignment) => toAssignmentCard(assignment, subjectRows.find((subject) => subject.id === assignment.subject_id)?.name));
+
   return (
     <section className="panel">
       <div className="panel-header">
         <div>
           <h2>Assessments and Activities</h2>
-          <p>Learning tasks with due dates, resources, scoring or completion status, rubrics, and feedback.</p>
+          <p>Tasks with due dates, completion status, quiz scores, submissions, and feedback.</p>
         </div>
-        <button className="button" type="button">
-          Create activity
-        </button>
+        {role === "faculty" && (
+          <button className="button" type="button" onClick={() => document.getElementById("assignmentTitle")?.focus()}>
+            Create activity
+          </button>
+        )}
       </div>
       <FilterBar role={role} />
       <div className="table-wrap">
@@ -587,89 +800,80 @@ function Activities({ role }: { role: RoleId }) {
             <tr>
               <th>Activity</th>
               <th>Type</th>
-              <th>Subject</th>
+              <th>Group</th>
               <th>Due</th>
               <th>Status</th>
               <th>Evaluation</th>
             </tr>
           </thead>
           <tbody>
-            {activities.length === 0 && (
+            {cards.length === 0 && (
               <tr>
                 <td colSpan={6}>
                   <div className="empty-state">
                     <h3>No activities yet</h3>
-                    <p>Assignments, quizzes, lab tasks, and practice tests will appear here.</p>
+                    <p>Assignments and quizzes will appear here.</p>
                   </div>
                 </td>
               </tr>
             )}
-            {activities.map(([name, type, subject, due, status, evaluation]) => (
-              <tr key={name}>
+            {cards.map((assignment) => (
+              <tr key={assignment.title}>
                 <td data-label="Activity">
-                  <strong>{name}</strong>
+                  <strong>{assignment.title}</strong>
                 </td>
-                <td data-label="Type">{type}</td>
-                <td data-label="Subject">{subject}</td>
-                <td data-label="Due">{due}</td>
+                <td data-label="Type">Assignment</td>
+                <td data-label="Group">{assignment.subject}</td>
+                <td data-label="Due">{assignment.due}</td>
                 <td data-label="Status">
-                  <span className="badge">{status}</span>
+                  <span className="badge">{assignment.pending > 0 ? "Open" : "Complete"}</span>
                 </td>
-                <td data-label="Evaluation">{evaluation}</td>
+                <td data-label="Evaluation">{assignment.reviewed} reviewed</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <AssignmentWorkbench role={role} assignments={assignments} subjects={subjectRows} onCreateAssignment={onCreateAssignment} />
     </section>
   );
 }
 
-function Engagement({ role }: { role: RoleId }) {
+function Engagement({ users, assignments }: { users: ApiUser[]; assignments: ApiAssignment[] }) {
+  const students = users.filter((user) => user.role === "student");
+
   return (
     <section className="content-grid">
       <article className="panel">
         <div className="panel-header">
           <div>
-            <h2>Doubts and Communication</h2>
-            <p>Faculty answers, AI guidance, class discussions, announcements, polls, and private feedback.</p>
+            <h2>Learning Time Monitor</h2>
+            <p>Track how much time students spend learning on the platform. Detailed timers can be connected to student sessions next.</p>
           </div>
-          <button className="button" type="button">
-            {role === "student" ? "Ask doubt" : "Post announcement"}
-          </button>
         </div>
         <div className="list-stack">
-          {doubts.length === 0 && (
+          {students.length === 0 && (
             <div className="empty-state">
-              <h3>No doubts or discussions yet</h3>
-              <p>Student doubts, class discussions, and announcements will appear here.</p>
+              <h3>No students to monitor</h3>
+              <p>Add student accounts to start monitoring learning time.</p>
             </div>
           )}
-          {doubts.map(([title, subject, followers, status]) => (
-            <div className="list-row" key={title}>
+          {students.map((student) => (
+            <div className="list-row" key={student.id}>
               <div>
-                <h3>{title}</h3>
-                <p>
-                  {subject} / {followers}
-                </p>
+                <h3>{student.name}</h3>
+                <p>{accountLabel(student)}</p>
               </div>
-              <span className={`badge ${badgeClass(status)}`}>{status}</span>
+              <span className="badge">0 min tracked</span>
             </div>
           ))}
         </div>
       </article>
       <aside className="panel">
-        <h2>Common Doubt Summary</h2>
-        <p>Common doubt clusters will appear after students begin asking questions.</p>
-        <textarea aria-label="Private feedback note" placeholder="Write private feedback or a discussion response..." />
-        <div className="actions">
-          <button className="button" type="button">
-            Send
-          </button>
-          <button className="button secondary" type="button">
-            Pin answer
-          </button>
-        </div>
+        <h2>Monitoring Summary</h2>
+        <p>{assignments.length} active assignments or quizzes.</p>
+        <p>{students.length} students available for monitoring.</p>
+        <p>Time values currently start at zero until student session tracking is enabled.</p>
       </aside>
     </section>
   );
@@ -683,20 +887,20 @@ function Analytics({ role }: { role: RoleId }) {
         <article className="panel">
           <div className="panel-header">
             <div>
-              <h2>Learning Analytics</h2>
-              <p>Progress signals only, separate from official college records.</p>
+              <h2>Time and Completion Analytics</h2>
+              <p>Faculty monitoring signals for assignments, quizzes, submissions, and platform time.</p>
             </div>
           </div>
           <AnalyticsBars />
         </article>
         <aside className="panel">
-          <h2>Student Learning Profiles</h2>
-          <p>Submitted activities, pending tasks, feedback history, doubts, weak topics, improvement trend, and private notes.</p>
+          <h2>Student Monitoring Profiles</h2>
+          <p>Submitted work, pending tasks, feedback history, quiz attempts, and time spent.</p>
           <div className="profile-grid">
             {studentProfiles.length === 0 && (
               <div className="empty-state">
                 <h3>No student profiles yet</h3>
-                <p>Learning profiles will appear after students are enrolled and begin activities.</p>
+                <p>Monitoring profiles will appear after students are added and begin work.</p>
               </div>
             )}
             {studentProfiles.map(([name, section, subject, progress, weak, trend]) => (
@@ -717,64 +921,118 @@ function Analytics({ role }: { role: RoleId }) {
   );
 }
 
-function SettingsView({ role }: { role: RoleId }) {
+function AdminOverview({ users, onManageUsers }: { users: ApiUser[]; onManageUsers: () => void }) {
+  const facultyCount = users.filter((user) => user.role === "faculty").length;
+  const studentCount = users.filter((user) => user.role === "student").length;
+
   return (
-    <section className="panel">
-      <div className="panel-header">
-        <div>
-          <h2>{role === "admin" ? "Platform Settings" : "Profile and Preferences"}</h2>
-          <p>Configurable defaults for resource rules, late policy, AI assistant behavior, and moderation.</p>
-        </div>
-      </div>
-      <form className="form-grid">
-        <label>
-          Resource upload rules
-          <select>
-            <option>PDF, PPT, media, links, code, SQL, datasets</option>
-          </select>
-        </label>
-        <label>
-          Assignment late policy default
-          <select>
-            <option>Allow late submissions with visible status</option>
-            <option>Close after due date</option>
-          </select>
-        </label>
-        <label>
-          AI assistant rules
-          <select>
-            <option>Explain and guide, do not complete graded work</option>
-          </select>
-        </label>
-        <label>
-          Discussion moderation
-          <select>
-            <option>Faculty moderated classroom discussions</option>
-          </select>
-        </label>
-        <label>
-          Future public registration
-          <select>
-            <option>Placeholder disabled</option>
-          </select>
-        </label>
-        <label>
-          Password update
-          <input type="password" placeholder="New password" />
-        </label>
-        <label className="full-width">
-          Notes
-          <textarea placeholder="Policy notes, faculty private notes, or learning support guidance" />
-        </label>
-        <div className="actions full-width">
-          <button className="button" type="button">
-            Save changes
-          </button>
-          <button className="button secondary" type="button">
-            Reset
+    <section className="content-grid">
+      <article className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Portal access</p>
+            <h2>Manage faculty and student accounts</h2>
+            <p>Create login accounts, assign the correct role, and disable access when needed.</p>
+          </div>
+          <button className="button" type="button" onClick={onManageUsers}>
+            Manage users
           </button>
         </div>
-      </form>
+        <div className="submission-summary">
+          <div><strong>{facultyCount}</strong><span>Faculty</span></div>
+          <div><strong>{studentCount}</strong><span>Students</span></div>
+          <div><strong>{users.filter((user) => user.is_active !== false).length}</strong><span>Active</span></div>
+          <div><strong>{users.filter((user) => user.is_active === false).length}</strong><span>Inactive</span></div>
+        </div>
+      </article>
+      <aside className="panel">
+        <h2>Recent accounts</h2>
+        <div className="list-stack">
+          {users.slice(0, 5).map((user) => (
+            <div className="list-row" key={user.id}>
+              <div><h3>{user.name}</h3><p>{accountLabel(user)}</p></div>
+              <span className="badge">{user.role === "admin" ? "Super Admin" : user.role}</span>
+            </div>
+          ))}
+        </div>
+      </aside>
+    </section>
+  );
+}
+
+function SettingsView({ users, onCreateUser, onToggleUser }: { users: ApiUser[]; onCreateUser: (body: Record<string, string>) => Promise<void>; onToggleUser: (user: ApiUser) => Promise<void> }) {
+  const [draft, setDraft] = useState({ name: "", email: "", password: "", role: "student" as RoleId, title: "" });
+
+  const submitUser = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await onCreateUser(draft);
+    setDraft({ name: "", email: "", password: "", role: "student", title: "" });
+  };
+
+  return (
+    <section className="content-grid">
+      <article className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Create Account</h2>
+            <p>Create faculty and student accounts for assigning and monitoring work.</p>
+          </div>
+        </div>
+        <form className="form-grid" onSubmit={submitUser}>
+          <label>
+            Name
+            <input required value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Student or faculty name" />
+          </label>
+          <label>
+            Email
+            <input required type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} placeholder="person@learningportal.test" />
+          </label>
+          <label>
+            Password
+            <input required value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Temporary password" />
+          </label>
+          <label>
+            Role
+            <select value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value as RoleId }))}>
+              <option value="student">Student</option>
+              <option value="faculty">Faculty</option>
+            </select>
+          </label>
+          <label className="full-width">
+            Title
+            <input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Student or Faculty" />
+          </label>
+          <div className="actions full-width">
+            <button className="button" type="submit">
+              Create account
+            </button>
+          </div>
+        </form>
+      </article>
+      <aside className="panel">
+        <h2>Manage Users</h2>
+        <div className="list-stack">
+          {users.map((user) => (
+            <div className="list-row" key={user.id}>
+              <div>
+                <h3>{user.name}</h3>
+                <p>{accountLabel(user)}</p>
+              </div>
+              <div className="actions">
+                <span className="badge">{user.role === "admin" ? "Super Admin" : user.role}</span>
+                <button
+                  className="button secondary compact"
+                  type="button"
+                  disabled={user.role === "admin"}
+                  onClick={() => void onToggleUser(user)}
+                >
+                  {user.is_active === false ? "Activate" : "Deactivate"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </aside>
     </section>
   );
 }
@@ -786,7 +1044,7 @@ function DetailModal({ subject, onClose }: { subject: Subject | null; onClose: (
       <div className="modal-panel" onMouseDown={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <p className="eyebrow">Learning detail</p>
+            <p className="eyebrow">Group detail</p>
             <h2 id="modalTitle">{subject.name}</h2>
           </div>
           <button className="icon-button" type="button" aria-label="Close modal" onClick={onClose}>
@@ -796,24 +1054,24 @@ function DetailModal({ subject, onClose }: { subject: Subject | null; onClose: (
         <div className="modal-body">
           <div className="profile-grid">
             <div className="profile-card">
-              <strong>{subject.type}</strong>
-              <p>Subject type</p>
+              <strong>{workTypeLabel(subject.type)}</strong>
+              <p>Work type</p>
             </div>
             <div className="profile-card">
               <strong>{subject.progress}%</strong>
-              <p>Learning progress</p>
+              <p>Completion progress</p>
             </div>
             <div className="profile-card">
               <strong>{subject.pending}</strong>
-              <p>Pending activities</p>
+              <p>Pending tasks</p>
             </div>
           </div>
-          <h3>Theory support</h3>
-          <p>Units, notes, quizzes, assignments, important questions, previous practice questions, and unit-wise discussions are available when the subject includes theory.</p>
-          <h3>Lab support</h3>
-          <p>Experiments include aim, concept, procedure, algorithm, sample input/output, expected result, submissions, viva practice, and feedback when the subject includes lab work.</p>
-          <h3>Learning analytics</h3>
-          <p>Progress, scores, task completion, feedback, attempts, weak topics, and AI usage awareness are shown as learning indicators only.</p>
+          <h3>Assignments and quizzes</h3>
+          <p>Faculty can create tasks, set due dates, and monitor submitted, pending, and reviewed work.</p>
+          <h3>Student monitoring</h3>
+          <p>Track completion, quiz attempts, feedback, and time spent learning on the platform.</p>
+          <h3>Follow-up signals</h3>
+          <p>Use pending work and low activity to identify students who need support.</p>
         </div>
       </div>
     </div>
@@ -822,20 +1080,138 @@ function DetailModal({ subject, onClose }: { subject: Subject | null; onClose: (
 
 export function App() {
   const [role, setRole] = useState<RoleId>("admin");
-  const [sessionName, setSessionName] = useState("K. Uma Shankar");
+  const [sessionName, setSessionName] = useState("admin");
+  const [sessionAuth, setSessionAuth] = useState<SessionAuth | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [view, setView] = useState<ViewId>("overview");
   const [query, setQuery] = useState("");
   const [selectedSubjectIndex, setSelectedSubjectIndex] = useState(0);
   const [modalSubject, setModalSubject] = useState<Subject | null>(null);
+  const [portalData, setPortalData] = useState<PortalData>({ users: [], subjects: [], assignments: [] });
+  const [statusMessage, setStatusMessage] = useState("");
+
+  const filteredData = useMemo(() => {
+    const search = query.trim().toLowerCase();
+    if (!search) return portalData;
+
+    return {
+      users: portalData.users.filter((user) => `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(search)),
+      subjects: portalData.subjects.filter((subject) => `${subject.name} ${subject.semester} ${subject.section}`.toLowerCase().includes(search)),
+      assignments: portalData.assignments.filter((assignment) => `${assignment.title} ${assignment.subjects?.name ?? ""}`.toLowerCase().includes(search)),
+    };
+  }, [portalData, query]);
+
+  const authHeaders = () => ({
+    "Content-Type": "application/json",
+    ...(sessionAuth ? { "X-User-Email": sessionAuth.email, "X-User-Password": sessionAuth.password } : {}),
+  });
+
+  const apiRequest = async <T,>(path: string, options: RequestInit = {}) => {
+    const response = await fetch(`${API_BASE_URL}${path}`, options);
+    const data = (await response.json()) as T & { error?: string };
+    if (!response.ok) throw new Error(data.error ?? "Request failed");
+    return data;
+  };
+
+  const loadPortalData = async () => {
+    const headers = authHeaders();
+    const usersPromise = role === "student"
+      ? Promise.resolve({ users: [] as ApiUser[] })
+      : apiRequest<{ users: ApiUser[] }>("/api/users", { headers });
+    const subjectsPromise = role === "admin"
+      ? Promise.resolve({ subjects: [] as ApiSubject[] })
+      : apiRequest<{ subjects: ApiSubject[] }>("/api/subjects", { headers });
+    const assignmentsPromise = role === "admin"
+      ? Promise.resolve({ assignments: [] as ApiAssignment[] })
+      : apiRequest<{ assignments: ApiAssignment[] }>("/api/assignments", { headers });
+
+    const [usersResponse, subjectsResponse, assignmentsResponse] = await Promise.all([
+      usersPromise,
+      subjectsPromise,
+      assignmentsPromise,
+    ]);
+
+    setPortalData({
+      users: usersResponse.users,
+      subjects: subjectsResponse.subjects,
+      assignments: assignmentsResponse.assignments,
+    });
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    loadPortalData().catch((error) => setStatusMessage(error instanceof Error ? error.message : "Unable to load portal data"));
+  }, [isAuthenticated, role]);
+
+  const createUser = async (body: Record<string, string>) => {
+    try {
+      await apiRequest<{ user: ApiUser }>("/api/users", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+      setStatusMessage("Account created");
+      await loadPortalData();
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to create account");
+      throw error;
+    }
+  };
+
+  const toggleUser = async (user: ApiUser) => {
+    try {
+      const nextActive = user.is_active === false;
+      await apiRequest<{ user: ApiUser }>("/api/users", {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ id: user.id, isActive: nextActive }),
+      });
+      setStatusMessage(`${user.name} ${nextActive ? "activated" : "deactivated"}`);
+      await loadPortalData();
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to update account");
+      throw error;
+    }
+  };
+
+  const createSubject = async (body: Record<string, string>) => {
+    try {
+      await apiRequest<{ subject: ApiSubject }>("/api/subjects", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+    setStatusMessage("Group created");
+      await loadPortalData();
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to create group");
+      throw error;
+    }
+  };
+
+  const createAssignment = async (body: Record<string, string | number>) => {
+    try {
+      await apiRequest<{ assignment: ApiAssignment }>("/api/assignments", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+      setStatusMessage("Task created");
+      await loadPortalData();
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to create task");
+      throw error;
+    }
+  };
 
   const goToView = (nextView: ViewId) => {
     setView(nextView);
   };
 
-  const login = (nextRole: RoleId, name?: string) => {
+  const login = (nextRole: RoleId, auth: SessionAuth, name?: string) => {
     setRole(nextRole);
-    setSessionName(name ?? (nextRole === "student" ? "Karthikeyan" : "K. Uma Shankar"));
+    setSessionAuth(auth);
+    setSessionName(name ?? (nextRole === "student" ? "Student" : nextRole === "faculty" ? "Faculty" : "admin"));
     setView("overview");
     setQuery("");
     setIsAuthenticated(true);
@@ -844,6 +1220,7 @@ export function App() {
 
   const logout = () => {
     setIsAuthenticated(false);
+    setSessionAuth(null);
     setModalSubject(null);
     window.history.replaceState(null, "", "/login");
   };
@@ -852,14 +1229,16 @@ export function App() {
     return <LoginScreen onLogin={login} />;
   }
 
+  const navigation = navigationByRole[role];
+
   return (
     <div className="portal-shell">
       <header className="portal-header">
         <div className="brand">
-          <div className="brand-mark">K</div>
+          <div className="brand-mark">L</div>
           <div>
-            <strong>KGRCET Learning Portal</strong>
-            <span>KG Reddy College of Engineering & Technology</span>
+            <strong>Learning Portal</strong>
+            <span>Faculty assignment and monitoring</span>
           </div>
         </div>
         <div className="portal-user">
@@ -880,7 +1259,7 @@ export function App() {
       <main className="portal-main">
         <section className="portal-title-row">
           <div>
-            <p className="eyebrow">Academic Learning Platform</p>
+            <p className="eyebrow">{role === "admin" ? "Portal Administration" : role === "faculty" ? "Faculty Monitoring Platform" : "Student Learning Portal"}</p>
             <h1>{roleProfiles[role].title}</h1>
             <p className="page-subtitle">{roleProfiles[role].subtitle}</p>
           </div>
@@ -890,7 +1269,7 @@ export function App() {
             <input
               value={query}
               type="search"
-              placeholder="Search subjects, students, resources..."
+              placeholder="Search groups, students, assignments..."
               onChange={(event) => {
                 setQuery(event.target.value);
                 setView("overview");
@@ -899,52 +1278,49 @@ export function App() {
           </label>
         </section>
 
-        <PortalKpis role={role} />
+        <PortalKpis role={role} data={portalData} />
+        {statusMessage && (
+          <div className="status-banner" role="status">
+            {statusMessage}
+          </div>
+        )}
 
         <nav className="portal-tabs" aria-label="Dashboard modules">
           {navigation.map(({ id, label }) => (
             <button className={view === id ? "active" : ""} type="button" key={id} onClick={() => goToView(id)}>
-              {id === "overview" ? "Assignments & Submissions" : label}
+              {id === "overview" ? "Dashboard" : label}
             </button>
           ))}
         </nav>
 
         <section className="dashboard-content" aria-live="polite">
-          {view === "overview" && <AssignmentWorkbench role={role} />}
-          {view === "workspace" && (
+          {view === "overview" && role === "admin" && <AdminOverview users={filteredData.users} onManageUsers={() => goToView("settings")} />}
+          {view === "overview" && role !== "admin" && <AssignmentWorkbench role={role} assignments={filteredData.assignments} subjects={filteredData.subjects} onCreateAssignment={createAssignment} />}
+          {view === "workspace" && role === "faculty" && (
             <Workspace
-              role={role}
+              subjects={filteredData.subjects}
               selectedSubject={selectedSubjectIndex}
               setSelectedSubject={setSelectedSubjectIndex}
               onOpen={setModalSubject}
+              onCreateSubject={createSubject}
             />
           )}
-          {view === "resources" && <Resources role={role} />}
-          {view === "activities" && <Activities role={role} />}
-          {view === "engagement" && <Engagement role={role} />}
-          {view === "analytics" && <Analytics role={role} />}
-          {view === "settings" && <SettingsView role={role} />}
+          {view === "resources" && role === "faculty" && <Resources role={role} users={filteredData.users} />}
+          {view === "activities" && role !== "admin" && <Activities role={role} assignments={filteredData.assignments} subjects={filteredData.subjects} onCreateAssignment={createAssignment} />}
+          {view === "engagement" && <Engagement users={filteredData.users} assignments={filteredData.assignments} />}
+          {view === "analytics" && role !== "admin" && <Analytics role={role} />}
+          {view === "settings" && role === "admin" && <SettingsView users={filteredData.users} onCreateUser={createUser} onToggleUser={toggleUser} />}
         </section>
       </main>
 
       <nav className="bottom-nav" aria-label="Mobile navigation">
-        {[
-          ["overview", "Home", LayoutDashboard],
-          ["workspace", "Class", GraduationCap],
-          ["activities", "Tasks", CheckCircle2],
-          ["engagement", "Doubts", MessageSquare],
-        ].map(([id, label, Icon]) => (
-          <button className={`bottom-item ${view === id ? "active" : ""}`} type="button" key={id as string} onClick={() => goToView(id as ViewId)}>
+        {navigation.map(({ id, label, icon: Icon }) => (
+          <button className={`bottom-item ${view === id ? "active" : ""}`} type="button" key={id} onClick={() => goToView(id)}>
             <Icon size={18} />
-            <span>{label as string}</span>
+            <span>{label}</span>
           </button>
         ))}
       </nav>
-
-      <button className="floating-action" type="button">
-        <ChevronRight size={18} />
-        {role === "student" ? "Continue" : "Create"}
-      </button>
 
       <DetailModal subject={modalSubject} onClose={() => setModalSubject(null)} />
     </div>

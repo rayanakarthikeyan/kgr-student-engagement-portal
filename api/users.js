@@ -9,6 +9,7 @@ import {
   handleOptions,
   methodNotAllowed,
   requireAdmin,
+  requireUser,
   requireFields,
   safeUser,
   sendError,
@@ -45,15 +46,17 @@ export default async function handler(req, res) {
   if (handleOptions(req, res)) return;
 
   try {
-    const readClient = createSupabaseClient();
+    const supabase = createSupabaseClient({ requirePrivileged: true });
 
     if (req.method === "GET") {
+      const actor = await requireUser(supabase, req, ["admin", "faculty"]);
       const query = getQuery(req);
-      let request = readClient
+      let request = supabase
         .from("users")
         .select("id,name,email,role,title,is_active,created_at")
         .order("created_at", { ascending: false });
 
+      if (actor.role === "faculty") request = request.eq("role", "student");
       if (query.role) request = request.eq("role", cleanText(query.role));
       if (query.search) {
         const search = cleanText(query.search);
@@ -69,7 +72,6 @@ export default async function handler(req, res) {
       return methodNotAllowed(res);
     }
 
-    const supabase = createSupabaseClient({ requirePrivileged: true });
     await requireAdmin(supabase, req);
 
     if (req.method === "POST") {
@@ -78,6 +80,9 @@ export default async function handler(req, res) {
       if (missing) return res.status(400).json({ error: missing });
 
       const payload = normalizeUserPayload(body);
+      if (payload.role === "admin") {
+        return res.status(403).json({ error: "Additional Super Admin accounts cannot be created here" });
+      }
       payload.id = cleanText(body.id) || createUserId(payload.role);
       payload.is_active = body.isActive === undefined && body.is_active === undefined ? true : Boolean(payload.is_active);
 
@@ -94,6 +99,16 @@ export default async function handler(req, res) {
     const body = getBody(req);
     const id = cleanText(body.id || getQuery(req).id);
     if (!id) return res.status(400).json({ error: "User id is required" });
+
+    const { data: targetUsers, error: targetError } = await supabase
+      .from("users")
+      .select("id,role")
+      .eq("id", id)
+      .limit(1);
+    if (targetError) throw targetError;
+    if (targetUsers?.[0]?.role === "admin") {
+      return res.status(403).json({ error: "The primary Super Admin account is protected" });
+    }
 
     if (req.method === "PATCH") {
       const payload = normalizeUserPayload(body, { partial: true });

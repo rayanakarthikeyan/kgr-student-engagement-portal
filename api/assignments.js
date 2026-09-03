@@ -6,7 +6,7 @@ import {
   getQuery,
   handleOptions,
   methodNotAllowed,
-  requireAdmin,
+  requireUser,
   requireFields,
   sendError,
   setCors,
@@ -49,11 +49,12 @@ export default async function handler(req, res) {
   if (handleOptions(req, res)) return;
 
   try {
-    const readClient = createSupabaseClient();
+    const supabase = createSupabaseClient({ requirePrivileged: true });
+    const actor = await requireUser(supabase, req);
 
     if (req.method === "GET") {
       const query = getQuery(req);
-      let request = readClient
+      let request = supabase
         .from("assignments")
         .select("*, subjects(name,type,semester,section)")
         .order("due_date", { ascending: true });
@@ -71,8 +72,11 @@ export default async function handler(req, res) {
       return methodNotAllowed(res);
     }
 
-    const supabase = createSupabaseClient({ requirePrivileged: true });
-    await requireAdmin(supabase, req);
+    if (!["admin", "faculty"].includes(actor.role)) {
+      const error = new Error("Only faculty or a Super Admin can manage assignments and quizzes");
+      error.statusCode = 403;
+      throw error;
+    }
 
     if (req.method === "POST") {
       const body = getBody(req);
