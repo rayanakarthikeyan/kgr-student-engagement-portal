@@ -44,6 +44,9 @@ export interface PortalPerson {
   id: string;
   name: string;
   role: RoleId;
+  email?: string;
+  roll_number?: string;
+  batch?: string;
 }
 
 type CreateRecord = (body: Record<string, unknown>, options?: { quiet?: boolean }) => Promise<void>;

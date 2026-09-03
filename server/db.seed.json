@@ -25,6 +25,8 @@
       "password": "student123",
       "role": "student",
       "title": "Student",
+      "roll_number": "DEMO-DBMS-01",
+      "batch": "DBMS-A",
       "is_active": true
     }
   ],

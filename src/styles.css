@@ -1526,15 +1526,57 @@ tr:last-child td {
 }
 
 .reference-assignment-card {
-  display: grid;
-  gap: 10px;
+  position: relative;
+  display: block;
   width: 100%;
   border: 1px solid #d8e1eb;
   border-radius: 8px;
   background: #fff;
-  padding: 16px;
+  padding: 0;
   text-align: left;
   box-shadow: 0 4px 10px rgba(20, 38, 63, 0.06);
+}
+
+.assignment-card-select {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 16px;
+  color: inherit;
+  text-align: left;
+}
+
+.assignment-card-actions {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  display: flex;
+  gap: 4px;
+}
+
+.assignment-card-actions button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid #d8e2ec;
+  border-radius: 6px;
+  background: #fff;
+  color: #475569;
+}
+
+.assignment-card-actions button:last-child {
+  color: #be123c;
+}
+
+.assignment-card-actions + * {
+  pointer-events: none;
+}
+
+.reference-assignment-card .assignment-title-row {
+  padding-right: 58px;
 }
 
 .reference-assignment-card:hover {
@@ -1836,6 +1878,206 @@ tr:last-child td {
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 20px;
   align-items: start;
+}
+
+.question-bank-layout {
+  grid-template-columns: minmax(0, 1fr) 420px;
+}
+
+.question-authoring-panel {
+  max-height: calc(100vh - 190px);
+  overflow-y: auto;
+}
+
+.report-filters {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+}
+
+.report-filters label {
+  display: grid;
+  min-width: 180px;
+  gap: 6px;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.report-filters select,
+.report-filters input {
+  min-height: 40px;
+}
+
+.inline-search {
+  position: relative;
+  flex: 1;
+}
+
+.inline-search svg {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  color: #64748b;
+}
+
+.inline-search input {
+  width: 100%;
+  padding-left: 38px;
+}
+
+.report-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.report-summary > div {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #dbe4ed;
+  border-radius: 7px;
+  padding: 12px 14px;
+}
+
+.report-summary span {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.report-summary strong {
+  color: #0f172a;
+  font-size: 1.25rem;
+}
+
+.code-input {
+  min-height: 96px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.78rem;
+}
+
+.test-case-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.test-case-list {
+  display: grid;
+  gap: 8px;
+}
+
+.test-case-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 8px;
+}
+
+.test-case-row > span {
+  color: #475569;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.check-label {
+  display: flex !important;
+  min-height: 34px;
+  align-items: center;
+  gap: 5px !important;
+  font-size: 0.7rem;
+}
+
+.check-label input {
+  width: 15px;
+  min-height: 15px;
+}
+
+.roster-log-row td {
+  background: #f8fafc;
+}
+
+.student-log-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 6px;
+}
+
+.student-log-grid > div {
+  border-left: 3px solid #0ea5e9;
+  padding: 8px 12px;
+}
+
+.student-log-grid span {
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.student-log-grid p {
+  display: grid;
+  gap: 3px;
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 0.76rem;
+}
+
+.user-account-list {
+  max-height: 620px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.user-account-list small {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .portal-header,
+  .portal-title-row,
+  .portal-tabs,
+  .bottom-nav,
+  .status-banner,
+  .tool-heading .heading-actions,
+  .report-filters {
+    display: none !important;
+  }
+
+  .portal-main,
+  .dashboard-content,
+  .printable-report {
+    width: 100%;
+    max-width: none;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .dense-table-wrap {
+    overflow: visible;
+  }
+
+  .dense-table {
+    font-size: 9pt;
+  }
 }
 
 .tool-main,
@@ -2337,6 +2579,25 @@ tr:last-child td {
   .toolbar-actions,
   .heading-actions {
     flex-wrap: wrap;
+  }
+
+  .report-filters,
+  .test-case-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .report-filters label {
+    min-width: 0;
+  }
+
+  .report-summary,
+  .student-log-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .test-case-row {
+    grid-template-columns: 1fr;
   }
 
   .toolbar-actions .button,

@@ -14,6 +14,7 @@ import {
   KeyRound,
   Mail,
   MessageSquareText,
+  Pencil,
   Search,
   Settings,
   UserCheck,
@@ -41,6 +42,8 @@ interface ApiUser {
   email: string;
   role: RoleId;
   title?: string;
+  roll_number?: string;
+  batch?: string;
   is_active?: boolean;
   created_at?: string;
 }
@@ -867,13 +870,22 @@ function AdminOverview({ users, onManageUsers }: { users: ApiUser[]; onManageUse
   );
 }
 
-function SettingsView({ users, onCreateUser, onToggleUser }: { users: ApiUser[]; onCreateUser: (body: Record<string, string>) => Promise<void>; onToggleUser: (user: ApiUser) => Promise<void> }) {
-  const [draft, setDraft] = useState({ name: "", email: "", password: "", role: "student" as RoleId, title: "" });
+function SettingsView({ users, onCreateUser, onUpdateUser, onToggleUser }: { users: ApiUser[]; onCreateUser: (body: Record<string, string>) => Promise<void>; onUpdateUser: (body: Record<string, string>) => Promise<void>; onToggleUser: (user: ApiUser) => Promise<void> }) {
+  const emptyDraft = { name: "", email: "", password: "", role: "student" as RoleId, title: "", rollNumber: "", batch: "DBMS-A" };
+  const [draft, setDraft] = useState(emptyDraft);
+  const [editingId, setEditingId] = useState("");
 
   const submitUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await onCreateUser(draft);
-    setDraft({ name: "", email: "", password: "", role: "student", title: "" });
+    if (editingId) await onUpdateUser({ id: editingId, ...draft });
+    else await onCreateUser(draft);
+    setDraft(emptyDraft);
+    setEditingId("");
+  };
+
+  const editUser = (user: ApiUser) => {
+    setEditingId(user.id);
+    setDraft({ name: user.name, email: user.email, password: "", role: user.role, title: user.title ?? "", rollNumber: user.roll_number ?? "", batch: user.batch ?? "DBMS-A" });
   };
 
   return (
@@ -881,8 +893,8 @@ function SettingsView({ users, onCreateUser, onToggleUser }: { users: ApiUser[];
       <article className="panel">
         <div className="panel-header">
           <div>
-            <h2>Create Account</h2>
-            <p>Create faculty and student accounts for assigning and monitoring work.</p>
+            <h2>{editingId ? "Edit Account" : "Create Account"}</h2>
+            <p>Create faculty and student accounts with the details needed for roster monitoring.</p>
           </div>
         </div>
         <form className="form-grid" onSubmit={submitUser}>
@@ -896,7 +908,7 @@ function SettingsView({ users, onCreateUser, onToggleUser }: { users: ApiUser[];
           </label>
           <label>
             Password
-            <input required value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder="Temporary password" />
+            <input required={!editingId} value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder={editingId ? "Leave blank to keep password" : "Temporary password"} />
           </label>
           <label>
             Role
@@ -905,28 +917,37 @@ function SettingsView({ users, onCreateUser, onToggleUser }: { users: ApiUser[];
               <option value="faculty">Faculty</option>
             </select>
           </label>
+          {draft.role === "student" && <><label>
+            Roll number
+            <input required value={draft.rollNumber} onChange={(event) => setDraft((current) => ({ ...current, rollNumber: event.target.value }))} placeholder="DEMO-DBMS-02" />
+          </label>
+          <label>
+            Batch
+            <input required value={draft.batch} onChange={(event) => setDraft((current) => ({ ...current, batch: event.target.value }))} placeholder="DBMS-A" />
+          </label></>}
           <label className="full-width">
             Title
             <input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Student or Faculty" />
           </label>
           <div className="actions full-width">
-            <button className="button" type="submit">
-              Create account
-            </button>
+            <button className="button" type="submit">{editingId ? "Save changes" : "Create account"}</button>
+            {editingId && <button className="button secondary" type="button" onClick={() => { setEditingId(""); setDraft(emptyDraft); }}>Cancel</button>}
           </div>
         </form>
       </article>
-      <aside className="panel">
-        <h2>Manage Users</h2>
-        <div className="list-stack">
+      <aside className="panel user-management-panel">
+        <div className="panel-header"><div><h2>Manage Users</h2><p>{users.length} registered accounts</p></div></div>
+        <div className="list-stack user-account-list">
           {users.map((user) => (
             <div className="list-row" key={user.id}>
               <div>
                 <h3>{user.name}</h3>
-                <p>{accountLabel(user)}</p>
+                <p>{user.email}</p>
+                {user.role === "student" && <small>{user.roll_number || "No roll number"} · {user.batch || "No batch"}</small>}
               </div>
               <div className="actions">
                 <span className="badge">{user.role === "admin" ? "Super Admin" : user.role}</span>
+                <button className="icon-button" type="button" title="Edit account" disabled={user.role === "admin"} onClick={() => editUser(user)}><Pencil size={15} /></button>
                 <button
                   className="button secondary compact"
                   type="button"
@@ -1099,6 +1120,21 @@ export function App() {
     }
   };
 
+  const updateUser = async (body: Record<string, string>) => {
+    try {
+      await apiRequest<{ user: ApiUser }>("/api/users", {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+      setStatusMessage("Account updated");
+      await loadPortalData();
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to update account");
+      throw error;
+    }
+  };
+
   const createSubject = async (body: Record<string, string>) => {
     try {
       await apiRequest<{ subject: ApiSubject }>("/api/subjects", {
@@ -1125,6 +1161,37 @@ export function App() {
       await loadPortalData();
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to create task");
+      throw error;
+    }
+  };
+
+  const updateAssignment = async (body: Record<string, string | number>) => {
+    try {
+      await apiRequest<{ assignment: ApiAssignment }>("/api/assignments", {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+      setStatusMessage("Assignment updated");
+      await loadPortalData();
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to update assignment");
+      throw error;
+    }
+  };
+
+  const deleteAssignment = async (id: string) => {
+    if (!window.confirm("Delete this assignment and its linked learning records?")) return;
+    try {
+      await apiRequest<{ assignment: ApiAssignment }>("/api/assignments", {
+        method: "DELETE",
+        headers: authHeaders(),
+        body: JSON.stringify({ id }),
+      });
+      setStatusMessage("Assignment deleted");
+      await loadPortalData();
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to delete assignment");
       throw error;
     }
   };
@@ -1319,7 +1386,7 @@ export function App() {
 
         <section className="dashboard-content" aria-live="polite">
           {view === "overview" && role === "admin" && <AdminOverview users={filteredData.users} onManageUsers={() => goToView("settings")} />}
-          {view === "overview" && role !== "admin" && <AssignmentWorkspace role={role} currentUserId={currentPerson.id} assignments={filteredData.assignments} subjects={filteredData.subjects} people={filteredData.people} learning={filteredData.learning} onCreateAssignment={createAssignment} onLearningAction={learningAction} onOpenAi={() => goToView("aiSupport")} />}
+          {view === "overview" && role !== "admin" && <AssignmentWorkspace role={role} currentUserId={currentPerson.id} assignments={filteredData.assignments} subjects={filteredData.subjects} people={filteredData.people} learning={filteredData.learning} onCreateAssignment={createAssignment} onUpdateAssignment={updateAssignment} onDeleteAssignment={deleteAssignment} onLearningAction={learningAction} onOpenAi={() => goToView("aiSupport")} />}
           {view === "workspace" && role === "faculty" && (
             <Workspace
               subjects={filteredData.subjects}
@@ -1333,9 +1400,9 @@ export function App() {
           {view === "activities" && role !== "admin" && <Activities role={role} assignments={filteredData.assignments} subjects={filteredData.subjects} onCreateAssignment={createAssignment} />}
           {view === "questionBank" && role === "faculty" && <QuestionBank assignments={filteredData.assignments} records={filteredData.learning} onCreate={learningAction} />}
           {view === "marksExport" && role === "faculty" && <MarksExport assignments={filteredData.assignments} records={filteredData.learning} people={filteredData.people} />}
-          {view === "aiExport" && role === "faculty" && <AiChatExport assignments={filteredData.assignments} records={filteredData.learning} people={filteredData.people} aiConfigured={portalData.aiConfigured} />}
+          {view === "aiExport" && role === "faculty" && <AiChatExport assignments={filteredData.assignments} records={filteredData.learning} people={filteredData.people} />}
           {view === "roster" && role === "faculty" && <StudentRoster people={filteredData.people} learning={filteredData.learning} engagement={filteredData.records} />}
-          {view === "aiSupport" && role === "student" && <AiAssignmentSupport currentUserId={currentPerson.id} assignments={filteredData.assignments} records={filteredData.learning} onCreate={learningAction} aiConfigured={portalData.aiConfigured} />}
+          {view === "aiSupport" && role === "student" && <AiAssignmentSupport currentUserId={currentPerson.id} assignments={filteredData.assignments} records={filteredData.learning} onCreate={learningAction} />}
           {view === "engagement" && role !== "admin" && (
             <EngagementHub
               role={role}
@@ -1347,7 +1414,7 @@ export function App() {
             />
           )}
           {view === "analytics" && role !== "admin" && <TimeMonitor role={role} currentUser={currentPerson} records={filteredData.records} people={filteredData.people} />}
-          {view === "settings" && role === "admin" && <SettingsView users={filteredData.users} onCreateUser={createUser} onToggleUser={toggleUser} />}
+          {view === "settings" && role === "admin" && <SettingsView users={filteredData.users} onCreateUser={createUser} onUpdateUser={updateUser} onToggleUser={toggleUser} />}
         </section>
       </main>
 

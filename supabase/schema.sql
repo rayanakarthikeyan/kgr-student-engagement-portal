@@ -8,15 +8,21 @@ CREATE TABLE IF NOT EXISTS public.users (
   password TEXT NOT NULL,
   role TEXT NOT NULL,
   title TEXT,
+  roll_number TEXT,
+  batch TEXT,
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS roll_number TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS batch TEXT;
 
 CREATE INDEX IF NOT EXISTS users_email_idx ON public.users (email);
 CREATE INDEX IF NOT EXISTS users_role_idx ON public.users (role);
+CREATE INDEX IF NOT EXISTS users_roll_number_idx ON public.users (roll_number);
+CREATE INDEX IF NOT EXISTS users_batch_idx ON public.users (batch);
 
 -- Subjects table
 CREATE TABLE IF NOT EXISTS public.subjects (

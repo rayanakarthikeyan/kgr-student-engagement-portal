@@ -14,7 +14,10 @@ Vite + React + TypeScript portal for faculty assignments, quizzes, student monit
 - reusable question bank with reference rubrics and keywords
 - student submissions with similarity scanning and faculty-reviewed auto-grading
 - CSV exports for marks and AI support conversations
-- assignment-aware AI student support with a built-in DBMS tutor fallback
+- assignment-aware student support with a private, built-in DBMS tutor that requires no external API
+- question-bank categories, starter code, rubric keywords, and hidden or visible test cases
+- batch-aware marks and AI-conversation reports with print and CSV export
+- searchable student roster with roll numbers, batches, and expandable learning logs
 
 ## Local Frontend
 
@@ -120,7 +123,7 @@ Use `POST /api/bootstrap-admin` only once on an empty database to create the fir
 
 The engagement API stores check-ins, private help requests, feedback, reminders, announcements, pulse checks, journals, recognition, and active-time sessions in `engagement_records`. Existing Supabase projects must run `supabase/migrations/20260823_engagement_records.sql` once before deploying this release.
 
-The learning API stores question-bank rubrics, student submissions, similarity and auto-grade results, and assignment-support conversations in `learning_records`. Existing projects must also run `supabase/migrations/20260823_learning_records.sql`. Set the server-only `OPENAI_API_KEY` and optional `OPENAI_MODEL` variables to enable hosted AI responses; without them, the portal uses its built-in assignment-aware DBMS tutor.
+The learning API stores question-bank rubrics, student submissions, similarity and auto-grade results, and assignment-support conversations in `learning_records`. Existing projects must run `supabase/migrations/20260823_learning_records.sql` and `supabase/migrations/20260823_student_roster_fields.sql`. The assignment assistant is implemented entirely inside the portal and never requires or calls an external AI API.
 
 To test through Vercel CLI instead, run:
 

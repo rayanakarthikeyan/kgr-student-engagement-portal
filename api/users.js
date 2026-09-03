@@ -30,6 +30,10 @@ function normalizeUserPayload(body, { partial = false } = {}) {
     assertRole(payload.role);
   }
   if (!partial || body.title !== undefined) payload.title = cleanText(body.title);
+  if (!partial || body.rollNumber !== undefined || body.roll_number !== undefined) {
+    payload.roll_number = cleanText(body.rollNumber || body.roll_number);
+  }
+  if (!partial || body.batch !== undefined) payload.batch = cleanText(body.batch);
   if (!partial || body.password !== undefined) payload.password = cleanText(body.password);
   if (body.isActive !== undefined) payload.is_active = Boolean(body.isActive);
   if (body.is_active !== undefined) payload.is_active = Boolean(body.is_active);
@@ -53,7 +57,7 @@ export default async function handler(req, res) {
       const query = getQuery(req);
       let request = supabase
         .from("users")
-        .select("id,name,email,role,title,is_active,created_at")
+        .select("id,name,email,role,title,roll_number,batch,is_active,created_at")
         .order("created_at", { ascending: false });
 
       if (actor.role === "faculty") request = request.eq("role", "student");
@@ -89,7 +93,7 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .from("users")
         .insert(payload)
-        .select("id,name,email,role,title,is_active,created_at")
+        .select("id,name,email,role,title,roll_number,batch,is_active,created_at")
         .single();
 
       if (error) throw error;
@@ -122,7 +126,7 @@ export default async function handler(req, res) {
         .from("users")
         .update(payload)
         .eq("id", id)
-        .select("id,name,email,role,title,is_active,created_at")
+        .select("id,name,email,role,title,roll_number,batch,is_active,created_at")
         .single();
 
       if (error) throw error;
@@ -133,7 +137,7 @@ export default async function handler(req, res) {
       .from("users")
       .delete()
       .eq("id", id)
-      .select("id,name,email,role,title,is_active,created_at")
+      .select("id,name,email,role,title,roll_number,batch,is_active,created_at")
       .single();
 
     if (error) throw error;

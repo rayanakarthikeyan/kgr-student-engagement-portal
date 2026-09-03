@@ -32,47 +32,41 @@ function similarity(left, right) {
 function builtInTutor(message, assignmentTitle, questionTitles) {
   const value = `${assignmentTitle} ${message}`.toLowerCase();
   const context = questionTitles.length > 0 ? ` Your assignment focuses on ${questionTitles.join(", ")}.` : "";
+  const asksForExample = /example|sample|show me/.test(value);
+  const asksToCheck = /check|review|correct|wrong|error/.test(value);
+  const opening = asksToCheck
+    ? "Use this check sequence on your current work:"
+    : asksForExample
+      ? "Use this small practice pattern, then replace it with your assignment data:"
+      : "Work through these steps:";
 
   if (value.includes("normal") || value.includes("bcnf") || value.includes("3nf")) {
-    return `Start by listing every functional dependency, then identify each candidate key. Check 3NF dependency by dependency before testing whether every determinant is a superkey for BCNF.${context} Try one decomposition step and send me the resulting relations.`;
+    return `${opening} 1) list the functional dependencies, 2) find candidate keys using attribute closure, 3) test whether each determinant is a superkey, and 4) decompose only the violating dependency. A relation is in BCNF when every non-trivial dependency has a superkey on the left.${context} Send one dependency and your closure result for the next check.`;
   }
   if (value.includes("sql") || value.includes("join") || value.includes("query")) {
-    return `Break the query into four parts: required columns, source tables, join conditions, and filters. Write the smallest working SELECT first, then add grouping or ordering.${context} Share your current query and the result you expected.`;
+    const sqlHint = value.includes("having") || value.includes("group")
+      ? "Use WHERE before grouping for row-level filters and HAVING after GROUP BY for aggregate filters."
+      : value.includes("join")
+        ? "Match each foreign key to its referenced primary key and qualify repeated column names with table aliases."
+        : "Start with SELECT and FROM, verify the rows, then add joins, filters, grouping, and ordering one step at a time.";
+    return `${opening} ${sqlHint}${context} Share your current query, the expected columns, and the result or error you received.`;
   }
   if (value.includes("transaction") || value.includes("concurr") || value.includes("serial")) {
-    return `Write the schedule in time order and mark every conflicting read/write pair. Build the precedence graph; a cycle means the schedule is not conflict-serializable.${context} Tell me which two operations you think conflict first.`;
+    return `${opening} write the schedule in time order, mark read/write conflicts on the same item, add a graph edge from the earlier transaction to the later one, and check the graph for a cycle. A cycle means it is not conflict-serializable.${context} Send the first conflicting pair you found.`;
   }
   if (value.includes("er") || value.includes("schema") || value.includes("entity")) {
-    return `List the entities and their identifiers first. Add relationships with cardinality, then convert each entity and many-to-many relationship into relations.${context} Start by naming the entities and primary keys you selected.`;
+    return `${opening} identify entities and primary keys, add relationship cardinalities, convert strong entities to relations, place the foreign key on the many side for one-to-many relationships, and create a bridge relation for many-to-many relationships.${context} Send the entities and keys you selected.`;
   }
-  return `I can guide you without completing the assignment for you. Tell me the exact step where you are stuck, what you already tried, and any error or unexpected result.${context}`;
-}
-
-async function tutorReply(message, assignment, questions) {
-  const fallback = builtInTutor(message, assignment?.title || "this assignment", questions.map((item) => item.title));
-  if (!process.env.OPENAI_API_KEY) return { answer: fallback, model: "Built-in DBMS tutor" };
-
-  try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-5-mini",
-        store: false,
-        instructions: "You are a concise academic support tutor. Guide the student with hints, checks, and next steps. Do not provide a complete ready-to-submit answer. Focus only on the supplied assignment context.",
-        input: `Assignment: ${assignment?.title || "General assignment support"}\nAvailable question topics: ${questions.map((item) => item.title).join(", ") || "None"}\nStudent: ${message}`,
-        max_output_tokens: 450,
-      }),
-    });
-    if (!response.ok) return { answer: fallback, model: "Built-in DBMS tutor" };
-    const data = await response.json();
-    return { answer: cleanText(data.output_text) || fallback, model: process.env.OPENAI_MODEL || "gpt-5-mini" };
-  } catch {
-    return { answer: fallback, model: "Built-in DBMS tutor" };
+  if (value.includes("index") || value.includes("b tree") || value.includes("hash")) {
+    return `${opening} identify the query predicate first. B-tree indexes support equality and range lookups; hash indexes are mainly useful for equality. Check selectivity and avoid indexing columns that change very frequently unless the read benefit is clear.${context} Share the query and the column you plan to index.`;
   }
+  if (value.includes("deadlock") || value.includes("lock")) {
+    return `${opening} draw a wait-for graph with one node per transaction. Add T1 -> T2 when T1 waits for a lock held by T2. A cycle indicates deadlock. Prevention options include a consistent lock order and shorter transactions.${context} Send the lock sequence you are analyzing.`;
+  }
+  if (value.includes("acid")) {
+    return `${opening} map each property to a failure scenario: atomicity prevents partial transactions, consistency preserves rules, isolation limits interference, and durability preserves committed results.${context} Try explaining which property handles a crash after commit.`;
+  }
+  return `I can guide you locally without sending your work to an external service. Tell me the DBMS topic, the exact step where you are stuck, what you tried, and any error or unexpected result.${context}`;
 }
 
 async function findRecord(supabase, id) {
@@ -128,14 +122,14 @@ export default async function handler(req, res) {
       if (query.assignmentId) request = request.eq("assignment_id", cleanText(query.assignmentId));
       const [{ data, error }, { data: people, error: peopleError }] = await Promise.all([
         request,
-        supabase.from("users").select("id,name,email,role,is_active"),
+        supabase.from("users").select("id,name,email,role,roll_number,batch,is_active"),
       ]);
       if (error) throw error;
       if (peopleError) throw peopleError;
       return res.status(200).json({
         records: (data || []).filter((record) => canRead(record, actor)).map((record) => studentSafe(record, actor)),
         people: (people || []).filter((person) => person.is_active !== false),
-        aiConfigured: Boolean(process.env.OPENAI_API_KEY),
+        aiConfigured: false,
       });
     }
 
@@ -196,7 +190,10 @@ export default async function handler(req, res) {
           assignmentId ? supabase.from("assignments").select("*").eq("id", assignmentId).limit(1) : Promise.resolve({ data: [] }),
           assignmentId ? supabase.from("learning_records").select("*").eq("kind", "question").eq("assignment_id", assignmentId) : Promise.resolve({ data: [] }),
         ]);
-        const reply = await tutorReply(message, assignments?.[0], questions || []);
+        const reply = {
+          answer: builtInTutor(message, assignments?.[0]?.title || "this assignment", (questions || []).map((item) => item.title)),
+          model: "Built-in DBMS tutor",
+        };
         const payload = {
           id: cleanText(body.id) || `learn-chat-${randomUUID()}`,
           kind,

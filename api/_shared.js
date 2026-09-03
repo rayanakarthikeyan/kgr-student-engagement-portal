@@ -271,7 +271,7 @@ export function safeUser(user) {
   return withoutPassword;
 }
 
-export async function findUserByIdentifier(supabase, identifier, columns = "id,name,email,password,role,title,is_active") {
+export async function findUserByIdentifier(supabase, identifier, columns = "id,name,email,password,role,title,roll_number,batch,is_active") {
   const normalized = cleanText(identifier).toLowerCase();
   let request = supabase.from("users").select(columns);
 
