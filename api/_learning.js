@@ -281,7 +281,7 @@ export default async function handler(req, res) {
           const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", generationConfig: { responseMimeType: "application/json" } });
           const maxMarks = submissionAssignment.max_marks || 10;
           const expectedOutput = submissionAssignment.test_cases?.[0]?.output || "Not provided";
-          const systemPrompt = \`You are an expert Computer Science professor at KG Reddy College of Engineering and Technology.
+          const systemPrompt = `You are an expert Computer Science professor at KG Reddy College of Engineering and Technology.
 Your task is to evaluate a student's submission for an assignment and grade it.
 Assignment Details:
 - Title: \${submissionAssignment.title}
@@ -300,7 +300,7 @@ Respond with ONLY a valid JSON object matching this schema:
 {
   "score": number, // Must be between 0 and \${maxMarks}
   "feedback": "string" // Constructive feedback for the student explaining the grade
-}\`;
+}`;
           const result = await model.generateContent(systemPrompt);
           const evaluation = JSON.parse(result.response.text());
           serverScore = Math.max(0, Math.min(maxMarks, Number(evaluation.score) || 0));
@@ -308,7 +308,7 @@ Respond with ONLY a valid JSON object matching this schema:
           submittedMetadata.auto_graded = true;
           finalStatus = "graded";
         } catch (evalError) {
-          console.error(\`Failed to evaluate submission\`, evalError);
+          console.error("Failed to evaluate submission", evalError);
         }
       }
 
