@@ -34,6 +34,13 @@ SUPABASE_ANON_KEY="your-public-anon-key"
 SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 ```
 
+The API also supports Vercel Marketplace Supabase variables:
+
+```bash
+SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
+SUPABASE_SECRET_KEY="your-secret-key"
+```
+
 6. Seed test data:
 
 ```bash
@@ -69,7 +76,7 @@ The deployable static output is generated in `dist/`.
 
 ## Deploy on Vercel
 
-Add these Vercel environment variables:
+Add these Vercel environment variables, or connect Supabase from the Vercel Marketplace so Vercel syncs them for you:
 
 ```bash
 VITE_SUPABASE_URL
@@ -77,6 +84,14 @@ VITE_SUPABASE_ANON_KEY
 SUPABASE_URL
 SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
+```
+
+If Vercel provides the newer Marketplace names, use:
+
+```bash
+SUPABASE_URL
+SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SECRET_KEY
 ```
 
 Build command:
