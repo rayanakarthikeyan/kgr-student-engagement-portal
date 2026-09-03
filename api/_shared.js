@@ -1,13 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
+import { createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 const roleValues = new Set(["admin", "faculty", "student"]);
 const subjectTypeValues = new Set(["Theory Only", "Lab Only", "Theory + Lab"]);
-const demoAccountNames = new Map([
-  ["admin", "admin"],
-  ["faculty.demo", "Demo Faculty"],
-  ["student.demo", "Demo Student"],
-]);
 let localDb;
 
 function hasUsableSupabaseConfig(url, key) {
@@ -29,6 +25,21 @@ function getLocalDb() {
     localDb.assignments ||= [];
     localDb.engagement_records ||= [];
     localDb.learning_records ||= [];
+    localDb.courses ||= [];
+    localDb.enrollments ||= [];
+    localDb.resources ||= [];
+    localDb.assessments ||= [];
+    localDb.submissions ||= [];
+    localDb.activity_logs ||= [];
+    localDb.users.forEach((user) => {
+      if (!user.password_hash && user.role === "faculty" && process.env.FACULTY_PASSWORD) {
+        user.password_hash = hashPassword(process.env.FACULTY_PASSWORD);
+      }
+      if (!user.password_hash && user.password) {
+        user.password_hash = hashPassword(user.password);
+        user.password = null;
+      }
+    });
   }
   return localDb;
 }
@@ -132,6 +143,14 @@ class LocalQuery {
     if (this.operation === "insert") {
       const inserted = this.payload.map((row) => ({ ...row, created_at: row.created_at ?? new Date().toISOString() }));
       table.push(...inserted);
+      // Mirror the production enrollment trigger in the in-memory development adapter.
+      if (this.tableName === "users") {
+        for (const user of inserted.filter((row) => row.role === "student")) {
+          for (const courseId of ["course-java", "course-dbms"]) {
+            this.db.enrollments.push({ id: `enr-${user.id}-${courseId}`, user_id: user.id, course_id: courseId, tracks: ["theory", "lab"], progress: 0, study_minutes: 0, status: "active", created_at: user.created_at });
+          }
+        }
+      }
       const data = projectRows(inserted, this.selectColumns, this.tableName, this.db);
       return { data: this.returnSingle ? data[0] : data, error: null };
     }
@@ -186,7 +205,7 @@ export function setCors(res, methods = "GET,POST,PATCH,DELETE,OPTIONS") {
   res.setHeader("Access-Control-Allow-Methods", methods);
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type, X-User-Email, X-User-Password, X-Admin-Email, X-Admin-Password, X-Bootstrap-Token",
+    "Authorization, Content-Type, X-User-Email, X-User-Password, X-Admin-Email, X-Admin-Password, X-Bootstrap-Token",
   );
 }
 
@@ -267,26 +286,88 @@ export function assertSubjectType(type) {
 
 export function safeUser(user) {
   if (!user) return user;
-  const { password: _password, ...withoutPassword } = user;
-  return withoutPassword;
+  const { password: _password, password_hash: _passwordHash, ...publicUser } = user;
+  return publicUser;
 }
 
-export async function findUserByIdentifier(supabase, identifier, columns = "id,name,email,password,role,title,roll_number,batch,is_active") {
-  const normalized = cleanText(identifier).toLowerCase();
-  let request = supabase.from("users").select(columns);
+export function hashPassword(password) {
+  const salt = randomBytes(16).toString("base64url");
+  const iterations = 210000;
+  const derived = pbkdf2Sync(cleanText(password), salt, iterations, 32, "sha512").toString("base64url");
+  return `pbkdf2_sha512$${iterations}$${salt}$${derived}`;
+}
 
-  if (normalized.includes("@")) {
-    request = request.eq("email", cleanEmail(normalized));
-  } else {
-    const accountName = demoAccountNames.get(normalized);
-    if (!accountName) return { data: [], error: null };
-    request = request.eq("name", accountName);
+export function verifyPassword(password, storedHash) {
+  if (!storedHash) return false;
+  const [algorithm, iterationsText, salt, expected] = String(storedHash).split("$");
+  if (algorithm !== "pbkdf2_sha512" || !iterationsText || !salt || !expected) return false;
+  const actual = pbkdf2Sync(cleanText(password), salt, Number(iterationsText), 32, "sha512");
+  const expectedBuffer = Buffer.from(expected, "base64url");
+  return actual.length === expectedBuffer.length && timingSafeEqual(actual, expectedBuffer);
+}
+
+function authSecret() {
+  const secret = process.env.AUTH_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === "production") throw new Error("AUTH_SECRET is required in production");
+  return "academia-local-development-secret-change-before-deploy";
+}
+
+export function createSessionToken(user, maxAgeSeconds = 60 * 60 * 12) {
+  const payload = Buffer.from(JSON.stringify({ sub: user.id, role: user.role, exp: Math.floor(Date.now() / 1000) + maxAgeSeconds })).toString("base64url");
+  const signature = createHmac("sha256", authSecret()).update(payload).digest("base64url");
+  return `${payload}.${signature}`;
+}
+
+function verifySessionToken(token) {
+  const [payload, signature] = cleanText(token).split(".");
+  if (!payload || !signature) return null;
+  const expected = createHmac("sha256", authSecret()).update(payload).digest();
+  const supplied = Buffer.from(signature, "base64url");
+  if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return claims.exp > Math.floor(Date.now() / 1000) && claims.sub ? claims : null;
+  } catch {
+    return null;
   }
+}
 
-  return request.limit(1);
+export async function findUserByIdentifier(supabase, identifier, columns = "id,name,email,password,password_hash,role,title,roll_number,batch,contact_number,department,section,college,is_active") {
+  const email = cleanEmail(identifier);
+  if (!/^\S+@\S+\.\S+$/.test(email)) return { data: [], error: null };
+  return supabase.from("users").select(columns).eq("email", email).limit(1);
 }
 
 export async function requireUser(supabase, req, allowedRoles = ["admin", "faculty", "student"]) {
+  const authorization = cleanText(getHeader(req, "authorization"));
+  if (authorization.toLowerCase().startsWith("bearer ")) {
+    const claims = verifySessionToken(authorization.slice(7));
+    if (!claims) {
+      const error = new Error("Your session is invalid or has expired");
+      error.statusCode = 401;
+      throw error;
+    }
+    const { data, error } = await supabase
+      .from("users")
+      .select("id,name,email,role,title,roll_number,batch,contact_number,department,section,college,is_active")
+      .eq("id", claims.sub)
+      .limit(1);
+    if (error) throw error;
+    const sessionUser = data?.[0];
+    if (!sessionUser || sessionUser.is_active === false || sessionUser.role !== claims.role) {
+      const error = new Error("Your account is invalid or inactive");
+      error.statusCode = 403;
+      throw error;
+    }
+    if (!allowedRoles.includes(sessionUser.role)) {
+      const error = new Error("You do not have permission to perform this action");
+      error.statusCode = 403;
+      throw error;
+    }
+    return sessionUser;
+  }
+
   const body = getBody(req);
   const identifier = cleanText(
     getHeader(req, "x-user-email") || getHeader(req, "x-admin-email") || body.userEmail || body.adminEmail,
@@ -306,7 +387,7 @@ export async function requireUser(supabase, req, allowedRoles = ["admin", "facul
   if (error) throw error;
 
   const user = data?.[0];
-  if (!user || user.password !== password || user.is_active === false) {
+  if (!user || !verifyPassword(password, user.password_hash) || user.is_active === false) {
     const error = new Error("Invalid or inactive account");
     error.statusCode = 403;
     throw error;

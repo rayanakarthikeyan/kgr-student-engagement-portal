@@ -2,58 +2,51 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as dotenv from "dotenv";
+import { hashPassword } from "../api/_shared.js";
 
-// Load local Vercel env first, then fallback project env.
 dotenv.config({ path: ".env.local" });
 dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.SUPABASE_SECRET_KEY;
-const hasPulledSensitivePlaceholder = [supabaseUrl, supabaseKey].some((value) => value === "[SENSITIVE]");
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+const hasPlaceholder = [supabaseUrl, supabaseKey].some((value) => value === "[SENSITIVE]");
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error("Missing Supabase environment variables in .env");
-  console.error("Required: SUPABASE_URL or VITE_SUPABASE_URL, plus SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY");
-  process.exit(1);
-}
-
-if (hasPulledSensitivePlaceholder) {
-  console.error("Vercel pulled sensitive environment variables as [SENSITIVE] placeholders.");
-  console.error("For local seeding, create a local .env file with real Supabase values, or run the seed from an environment that has plaintext secrets.");
-  process.exit(1);
+if (!supabaseUrl || !supabaseKey || hasPlaceholder) {
+  throw new Error("A real Supabase URL and privileged service key are required");
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function seed() {
-  const seedPath = resolve("server/db.seed.json");
-  const seedData = JSON.parse(readFileSync(seedPath, "utf8"));
+  const seedData = JSON.parse(readFileSync(resolve("server/db.seed.json"), "utf8"));
 
-  console.log("Clearing learning demo data...");
-  const clearSteps = [
-    ["engagement_records", "id"],
-    ["learning_records", "id"],
-    ["assignments", "id"],
-    ["subjects", "id"],
-    ["users", "id"],
-  ];
-
-  for (const [table, column] of clearSteps) {
-    const { error } = await supabase.from(table).delete().neq(column, "__seed_keep_none__");
-    if (error) {
-      throw new Error(`Error clearing ${table}: ${error.message}`);
-    }
-  }
-
-  console.log("Seeding Super Admin...");
+  console.log("Upserting system accounts without clearing registered users...");
   for (const user of seedData.users) {
-    const { error } = await supabase.from("users").upsert(user);
-    if (error) throw new Error(`Error inserting user: ${error.message}`);
+    const { password, password_hash: storedHash, ...profile } = user;
+    const { data: existing, error: readError } = await supabase.from("users").select("id").eq("id", user.id).limit(1);
+    if (readError) throw readError;
+    const initialPassword = user.role === "faculty" ? process.env.FACULTY_PASSWORD || password : password;
+    const passwordHash = storedHash || (initialPassword ? hashPassword(initialPassword) : "");
+    if (!existing?.length && !passwordHash) throw new Error(`Set FACULTY_PASSWORD before creating system account ${user.id}`);
+    const payload = existing?.length
+      ? { ...profile }
+      : { ...profile, password: null, password_hash: passwordHash };
+    const { error } = await supabase.from("users").upsert(payload);
+    if (error) throw new Error(`Error upserting system account: ${error.message}`);
   }
 
-  console.log("Seeding Subjects...");
+  console.log("Upserting JAVA and DBMS course definitions...");
+  const courses = (seedData.courses || []).map((course) => ({
+    id: course.id,
+    code: course.code,
+    title: course.title,
+    description: course.description,
+    is_active: course.is_active !== false,
+  }));
+  const { error: courseError } = await supabase.from("courses").upsert(courses);
+  if (courseError) throw new Error(`Error upserting courses: ${courseError.message}`);
+
+  console.log("Upserting KGR25 subjects...");
   for (const subject of seedData.subjects) {
     const { error } = await supabase.from("subjects").upsert({
       id: subject.id,
@@ -63,44 +56,15 @@ async function seed() {
       section: subject.section,
       department: subject.department,
       academic_year: subject.academic_year,
-      is_active: subject.is_active
+      is_active: subject.is_active,
     });
-    if (error) throw new Error(`Error inserting subject: ${error.message}`);
+    if (error) throw new Error(`Error upserting subject: ${error.message}`);
   }
 
-  console.log("Seeding Assignments...");
-  for (const assignment of seedData.assignments) {
-    const { error } = await supabase.from("assignments").upsert({
-      id: assignment.id,
-      title: assignment.title,
-      subject_id: assignment.subjectId, // map subjectId -> subject_id
-      due_date: assignment.dueDate,     // map dueDate -> due_date
-      max_marks: assignment.max_marks ?? 10,
-      description: assignment.description ?? "",
-      starter_code: assignment.starter_code ?? "",
-      test_cases: assignment.test_cases ?? [],
-      assigned_user_ids: assignment.assigned_user_ids ?? [],
-      assigned: assignment.assigned,
-      submitted: assignment.submitted,
-      pending: assignment.pending,
-      reviewed: assignment.reviewed
-    });
-    if (error) throw new Error(`Error inserting assignment: ${error.message}`);
-  }
-
-  console.log("Seeding Engagement Records...");
-  for (const record of seedData.engagement_records || []) {
-    const { error } = await supabase.from("engagement_records").upsert(record);
-    if (error) throw new Error(`Error inserting engagement record: ${error.message}`);
-  }
-
-  console.log("Seeding Learning Records...");
-  for (const record of seedData.learning_records || []) {
-    const { error } = await supabase.from("learning_records").upsert(record);
-    if (error) throw new Error(`Error inserting learning record: ${error.message}`);
-  }
-
-  console.log("Seed completed. Super Admin, faculty demo, and student demo accounts are present.");
+  console.log("Baseline seed complete. Existing student and coursework data was preserved.");
 }
 
-seed().catch(console.error);
+seed().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

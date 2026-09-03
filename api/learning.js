@@ -117,12 +117,21 @@ export default async function handler(req, res) {
 
     if (req.method === "GET") {
       const query = getQuery(req);
+      if (query.kind === "submission" && query.summary === "1" && actor.role !== "student" && typeof supabase.rpc === "function") {
+        const { data, error } = await supabase.rpc("kgr_submission_summary");
+        if (error) throw error;
+        return res.status(200).json({ records: data || [] });
+      }
       let request = supabase.from("learning_records").select("*").order("created_at", { ascending: false });
+      if (query.kind === "submission" && actor.role === "student") request = request.eq("author_id", actor.id);
+      if (query.authorId && actor.role !== "student") request = request.eq("author_id", cleanText(query.authorId));
       if (query.kind) request = request.eq("kind", cleanText(query.kind));
       if (query.assignmentId) request = request.eq("assignment_id", cleanText(query.assignmentId));
       const [{ data, error }, { data: people, error: peopleError }] = await Promise.all([
         request,
-        supabase.from("users").select("id,name,email,role,roll_number,batch,is_active"),
+        actor.role === "student"
+          ? supabase.from("users").select("id,name,email,role,roll_number,batch,is_active").eq("id", actor.id)
+          : supabase.from("users").select("id,name,email,role,roll_number,batch,is_active"),
       ]);
       if (error) throw error;
       if (peopleError) throw peopleError;
@@ -240,19 +249,42 @@ export default async function handler(req, res) {
       const assignmentId = cleanText(body.assignmentId || body.assignment_id) || null;
       const id = cleanText(body.id) || (kind === "submission" ? `learn-submission-${assignmentId}-${actor.id}` : `learn-question-${randomUUID()}`);
       const existing = await findRecord(supabase, id);
+      let submissionAssignment = null;
+      if (kind === "submission") {
+        if (actor.role === "student" && !["draft", "submitted"].includes(cleanText(body.status) || "submitted")) return res.status(400).json({ error: "Students can only save drafts or submit work" });
+        if (!assignmentId) return res.status(400).json({ error: "Assignment id is required" });
+        if (existing && existing.author_id !== actor.id) return res.status(403).json({ error: "You cannot modify this submission" });
+        if (existing && existing.status !== "draft") return res.status(409).json({ error: "A submitted response cannot be changed" });
+        const { data: assignmentRows, error: assignmentError } = await supabase.from("assignments").select("*").eq("id", assignmentId).limit(1);
+        if (assignmentError) throw assignmentError;
+        submissionAssignment = assignmentRows?.[0];
+        if (!submissionAssignment) return res.status(404).json({ error: "Assignment not found" });
+        const assignedIds = Array.isArray(submissionAssignment.assigned_user_ids) ? submissionAssignment.assigned_user_ids : [];
+        if (assignedIds.length > 0 && !assignedIds.includes(actor.id)) return res.status(403).json({ error: "This assignment is not assigned to you" });
+        const deadline = new Date(`${submissionAssignment.due_date}T18:29:59.999Z`);
+        if (!Number.isNaN(deadline.getTime()) && Date.now() > deadline.getTime()) return res.status(409).json({ error: "The assignment deadline has passed" });
+      }
+      const submittedMetadata = metadata(body.metadata);
+      const serverScore = kind === "submission" && submissionAssignment?.work_mode === "mcq" && cleanText(body.status) !== "draft"
+        ? (Array.isArray(submissionAssignment.questions) ? submissionAssignment.questions : []).reduce((sum, question) => {
+          const answer = submittedMetadata.answers?.[question.id];
+          return sum + (Number.isInteger(answer) && answer === question.correctIndex ? Number(question.marks || 0) : 0);
+        }, 0)
+        : undefined;
       const payload = {
         kind,
         author_id: existing?.author_id || actor.id,
-        subject_id: cleanText(body.subjectId || body.subject_id) || existing?.subject_id || null,
+        subject_id: submissionAssignment?.subject_id || cleanText(body.subjectId || body.subject_id) || existing?.subject_id || null,
         assignment_id: assignmentId || existing?.assignment_id || null,
         title: cleanText(body.title) || existing?.title || "",
         body: cleanText(body.body) || existing?.body || "",
         status: cleanText(body.status) || existing?.status || (kind === "submission" ? "submitted" : "active"),
-        score: body.score === undefined ? existing?.score ?? null : Number(body.score),
-        metadata: { ...metadata(existing?.metadata), ...metadata(body.metadata) },
+        score: serverScore === undefined ? (actor.role === "student" ? existing?.score ?? null : (body.score === undefined ? existing?.score ?? null : Number(body.score))) : serverScore,
+        metadata: { ...metadata(existing?.metadata), ...submittedMetadata },
         updated_at: new Date().toISOString(),
       };
       if (!payload.title || !payload.body) return res.status(400).json({ error: "Title and content are required" });
+      if (payload.body.length > 100000) return res.status(413).json({ error: "Submission content is too large" });
       const result = existing
         ? await supabase.from("learning_records").update(payload).eq("id", id).select("*").single()
         : await supabase.from("learning_records").insert({ id, ...payload }).select("*").single();
@@ -265,6 +297,7 @@ export default async function handler(req, res) {
     if (!id) return res.status(400).json({ error: "Learning record id is required" });
     const existing = await findRecord(supabase, id);
     if (!existing) return res.status(404).json({ error: "Learning record not found" });
+    if (existing.kind === "submission" && actor.role === "student") return res.status(403).json({ error: "Use the validated submission workflow to save your work" });
     if (actor.role !== "admin" && existing.author_id !== actor.id && actor.role !== "faculty") return res.status(403).json({ error: "You cannot modify this record" });
 
     if (req.method === "PATCH") {

@@ -4,6 +4,7 @@ import {
   createSupabaseClient,
   getBody,
   handleOptions,
+  hashPassword,
   methodNotAllowed,
   safeUser,
   sendError,
@@ -44,11 +45,16 @@ export default async function handler(req, res) {
     }
 
     const body = getBody(req);
+    const password = cleanText(body.password);
+    if (password.length < 12) {
+      return res.status(400).json({ error: "The initial administrator password must contain at least 12 characters" });
+    }
     const payload = {
       id: cleanText(body.id) || "u-admin-001",
       name: cleanText(body.name) || "admin",
       email: cleanEmail(body.email) || "admin@learningportal.test",
-      password: cleanText(body.password) || "admin123",
+      password: null,
+      password_hash: hashPassword(password),
       role: "admin",
       title: cleanText(body.title) || "Super Admin",
       is_active: true,

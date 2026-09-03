@@ -4,21 +4,30 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node scripts/workflow.test.mjs",
     "api:local": "node server/local-api.mjs",
     "dev": "node server/dev.mjs",
     "dev:vercel": "vercel dev",
     "dev:vite": "vite --host 127.0.0.1 --port 5173",
     "seed:supabase": "node scripts/seed-supabase.js",
+    "migrate:supabase": "node scripts/migrate-supabase.js",
+    "provision:faculty": "node scripts/provision-faculty.js",
     "typecheck": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@supabase/supabase-js": "^2.109.0",
+    "@tailwindcss/vite": "^4.3.3",
     "dotenv": "^17.4.2",
+    "framer-motion": "^13.1.1",
     "lucide-react": "^0.468.0",
+    "monaco-editor": "^0.56.0",
+    "pg": "^8.23.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@types/react": "^19.0.1",

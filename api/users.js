@@ -7,6 +7,7 @@ import {
   getBody,
   getQuery,
   handleOptions,
+  hashPassword,
   methodNotAllowed,
   requireAdmin,
   requireUser,
@@ -34,7 +35,11 @@ function normalizeUserPayload(body, { partial = false } = {}) {
     payload.roll_number = cleanText(body.rollNumber || body.roll_number);
   }
   if (!partial || body.batch !== undefined) payload.batch = cleanText(body.batch);
-  if (!partial || body.password !== undefined) payload.password = cleanText(body.password);
+  if (!partial || body.password !== undefined) {
+    const password = cleanText(body.password);
+    if (password) payload.password_hash = hashPassword(password);
+    payload.password = null;
+  }
   if (body.isActive !== undefined) payload.is_active = Boolean(body.isActive);
   if (body.is_active !== undefined) payload.is_active = Boolean(body.is_active);
 
@@ -57,11 +62,13 @@ export default async function handler(req, res) {
       const query = getQuery(req);
       let request = supabase
         .from("users")
-        .select("id,name,email,role,title,roll_number,batch,is_active,created_at")
+        .select("id,name,email,role,title,roll_number,batch,contact_number,department,section,college,is_active,created_at")
         .order("created_at", { ascending: false });
 
       if (actor.role === "faculty") request = request.eq("role", "student");
       if (query.role) request = request.eq("role", cleanText(query.role));
+      if (query.department) request = request.eq("department", cleanText(query.department).toUpperCase());
+      if (query.section) request = request.eq("section", cleanText(query.section).toUpperCase());
       if (query.search) {
         const search = cleanText(query.search);
         request = request.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
@@ -93,7 +100,7 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .from("users")
         .insert(payload)
-        .select("id,name,email,role,title,roll_number,batch,is_active,created_at")
+        .select("id,name,email,role,title,roll_number,batch,contact_number,department,section,college,is_active,created_at")
         .single();
 
       if (error) throw error;
@@ -126,7 +133,7 @@ export default async function handler(req, res) {
         .from("users")
         .update(payload)
         .eq("id", id)
-        .select("id,name,email,role,title,roll_number,batch,is_active,created_at")
+        .select("id,name,email,role,title,roll_number,batch,contact_number,department,section,college,is_active,created_at")
         .single();
 
       if (error) throw error;
@@ -137,7 +144,7 @@ export default async function handler(req, res) {
       .from("users")
       .delete()
       .eq("id", id)
-      .select("id,name,email,role,title,roll_number,batch,is_active,created_at")
+      .select("id,name,email,role,title,roll_number,batch,contact_number,department,section,college,is_active,created_at")
       .single();
 
     if (error) throw error;

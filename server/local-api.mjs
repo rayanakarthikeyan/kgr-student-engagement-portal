@@ -10,6 +10,9 @@ import assignments from "../api/assignments.js";
 import engagement from "../api/engagement.js";
 import learning from "../api/learning.js";
 import bootstrapAdmin from "../api/bootstrap-admin.js";
+import register from "../api/register.js";
+import platform from "../api/platform.js";
+import codeRunner from "../api/code-runner.js";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
@@ -29,6 +32,9 @@ const routes = {
   "/api/engagement": engagement,
   "/api/learning": learning,
   "/api/bootstrap-admin": bootstrapAdmin,
+  "/api/register": register,
+  "/api/platform": platform,
+  "/api/code-runner": codeRunner,
 };
 
 async function readBody(request) {

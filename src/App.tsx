@@ -1,1481 +1,267 @@
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  Activity,
-  Bot,
-  CircleAlert,
   BarChart3,
-  BookOpen,
+  Bell,
+  Braces,
+  ChevronDown,
+  ClipboardCheck,
   ClipboardList,
-  FileText,
-  FileQuestion,
+  Command,
+  FileStack,
   GraduationCap,
-  HeartHandshake,
   LayoutDashboard,
+  LibraryBig,
   LogOut,
-  KeyRound,
-  Mail,
-  MessageSquareText,
-  Pencil,
-  Search,
+  Menu,
+  Moon,
   Settings,
-  UserCheck,
-  UsersRound,
+  Sun,
+  Users,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { EngagementHub, TimeMonitor, type EngagementRecord, type PortalPerson } from "./EngagementHub";
-import { AiAssignmentSupport, AiChatExport, MarksExport, QuestionBank, StudentRoster, type LearningRecord } from "./LearningTools";
-import { AssignmentWorkspace } from "./AssignmentWorkspace";
-import {
-  roleConfig,
-  roleProfiles,
-  type RoleId,
-  type Subject,
-  type SubjectType,
-  type ViewId,
-} from "./data";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AuthScreen } from "./components/AuthScreen";
+import { CourseworkManager } from "./components/CourseworkManager";
+import { FacultyAnalytics } from "./components/FacultyAnalytics";
+import { FacultyResourceManager } from "./components/FacultyResourceManager";
+import { ResourceViewer } from "./components/ResourceViewer";
+import { StudentDashboard } from "./components/StudentDashboard";
+import { courses } from "./platform/demo";
+import { enrollInCourse, loadCoursework, loadStudentOverview, logActivity, restoreSession, saveSession, validateSession } from "./platform/api";
+import type { ActivityLog, AssignmentRecord, AuthSession, Enrollment, LearningRecord, LearningResource } from "./platform/types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+type ViewId = "dashboard" | "learn" | "coursework" | "assessment" | "lab" | "resources" | "telemetry";
+type Theme = "light" | "dark";
 
-interface ApiUser {
-  id: string;
-  name: string;
-  email: string;
-  role: RoleId;
-  title?: string;
-  roll_number?: string;
-  batch?: string;
-  is_active?: boolean;
-  created_at?: string;
-}
+const studentNavigation = [
+  { id: "dashboard" as const, label: "Overview", icon: LayoutDashboard },
+  { id: "learn" as const, label: "Theory resources", icon: LibraryBig },
+  { id: "coursework" as const, label: "Practice", icon: ClipboardList },
+  { id: "assessment" as const, label: "Assessments", icon: ClipboardCheck },
+  { id: "lab" as const, label: "Lab work", icon: Braces },
+];
 
-interface ApiSubject {
-  id: string;
-  name: string;
-  type: SubjectType;
-  semester: string;
-  section: string;
-  department?: string;
-  academic_year?: string;
-  is_active?: boolean;
-}
+const facultyNavigation = [
+  { id: "dashboard" as const, label: "Overview", icon: LayoutDashboard },
+  { id: "resources" as const, label: "Theory resources", icon: FileStack },
+  { id: "coursework" as const, label: "Practice", icon: ClipboardList },
+  { id: "assessment" as const, label: "Assessments", icon: ClipboardCheck },
+  { id: "lab" as const, label: "Lab work", icon: Braces },
+  { id: "telemetry" as const, label: "Student insights", icon: BarChart3 },
+];
 
-interface ApiAssignment {
-  id: string;
-  title: string;
-  subject_id: string;
-  due_date: string;
-  max_marks?: number;
-  description?: string;
-  starter_code?: string;
-  test_cases?: Array<{ input: string; output: string; hidden: boolean }>;
-  assigned_user_ids?: string[];
-  assigned: number;
-  submitted: number;
-  pending: number;
-  reviewed: number;
-  subjects?: Pick<ApiSubject, "name" | "type" | "semester" | "section"> | null;
-}
-
-interface SessionAuth {
-  email: string;
-  password: string;
-}
-
-
-interface PortalData {
-  users: ApiUser[];
-  subjects: ApiSubject[];
-  assignments: ApiAssignment[];
-  records: EngagementRecord[];
-  people: PortalPerson[];
-  learning: LearningRecord[];
-  aiConfigured: boolean;
-}
-
-function emptyPortalData(): PortalData {
-  return { users: [], subjects: [], assignments: [], records: [], people: [], learning: [], aiConfigured: false };
-}
-
-const navigationByRole: Record<RoleId, { id: ViewId; label: string; icon: React.ElementType }[]> = {
-  admin: [
-    { id: "overview", label: "Dashboard", icon: LayoutDashboard },
-    { id: "settings", label: "Manage Users", icon: Settings },
-  ],
-  faculty: [
-    { id: "overview", label: "Assignments & Submissions", icon: ClipboardList },
-    { id: "questionBank", label: "Question Bank", icon: FileQuestion },
-    { id: "marksExport", label: "Marks Export", icon: FileText },
-    { id: "aiExport", label: "AI Chat Export", icon: MessageSquareText },
-    { id: "roster", label: "Student Roster", icon: UsersRound },
-    { id: "workspace", label: "Student Groups", icon: BookOpen },
-    { id: "engagement", label: "Engagement", icon: HeartHandshake },
-    { id: "analytics", label: "Time Monitor", icon: BarChart3 },
-  ],
-  student: [
-    { id: "overview", label: "My Assignments", icon: ClipboardList },
-    { id: "aiSupport", label: "AI Assignment Support", icon: Bot },
-    { id: "engagement", label: "Connect", icon: HeartHandshake },
-    { id: "analytics", label: "My Learning Time", icon: BarChart3 },
-  ],
-};
-
-
-interface AssignmentCardData {
-  id: string;
-  title: string;
-  subject: string;
-  due: string;
-  assigned: number;
-  submitted: number;
-  pending: number;
-  reviewed: number;
-  progress: number;
-}
-
-function toSubjectCard(subject: ApiSubject): Subject {
-  return {
-    name: subject.name,
-    type: subject.type,
-    semester: subject.semester,
-    section: subject.section,
-    faculty: "",
-    progress: 0,
-    pending: 0,
-    doubtCount: 0,
-    risk: "Low",
+function pageTitle(view: ViewId) {
+  const titles: Record<ViewId, [string, string]> = {
+    dashboard: ["Learning command center", "Courses, progress, and next actions in one focused workspace."],
+    learn: ["Theory resources", "Study faculty-assigned videos and documents with transparent progress tracking."],
+    coursework: ["Practice", "Complete non-proctored MCQs and IDE questions for JAVA and DBMS."],
+    assessment: ["Assessment center", "Secure, timed checkpoints with autosave and integrity monitoring."],
+    lab: ["Lab work", "Complete official KGR25 experiments in an instrumented coding workspace."],
+    resources: ["Theory resource manager", "Assign YouTube and Drive resources without consuming platform storage."],
+    telemetry: ["Student insights", "Review study engagement, assessment integrity, and lab debugging behavior."],
   };
+  return titles[view];
 }
 
-function toAssignmentCard(assignment: ApiAssignment, subjectName = "Unassigned"): AssignmentCardData {
-  const assigned = assignment.assigned || 0;
-  const submitted = assignment.submitted || 0;
-  const progress = assigned > 0 ? Math.round((submitted / assigned) * 100) : 0;
+export default function App() {
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [view, setView] = useState<ViewId>("dashboard");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() => localStorage.getItem("kgr-theme") === "dark" ? "dark" : "light");
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [learningResources, setLearningResources] = useState<LearningResource[]>([]);
+  const [dashboardAssignments, setDashboardAssignments] = useState<AssignmentRecord[]>([]);
+  const [dashboardSubmissions, setDashboardSubmissions] = useState<LearningRecord[]>([]);
 
-  return {
-    id: assignment.id,
-    title: assignment.title,
-    subject: assignment.subjects?.name ?? subjectName,
-    due: assignment.due_date,
-    assigned,
-    submitted,
-    pending: assignment.pending || 0,
-    reviewed: assignment.reviewed || 0,
-    progress,
-  };
-}
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("kgr-theme", theme);
+  }, [theme]);
 
-function todayDateInputValue() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function accountLabel(user: ApiUser) {
-  return user.email.split("@")[0] || user.name;
-}
-
-function shortDuration(seconds: number) {
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min`;
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-
-function workTypeLabel(type: SubjectType) {
-  if (type === "Theory Only") return "Assignments only";
-  if (type === "Lab Only") return "Quizzes only";
-  return "Assignments + quizzes";
-}
-
-function badgeClass(value: SubjectType | Subject["risk"] | string) {
-  if (value === "Lab Only") return "lab";
-  if (value === "Theory + Lab" || value === "Recommended") return "mixed";
-  if (value === "High" || value === "Unanswered") return "danger";
-  if (value === "Medium" || value.includes("Needs") || value.includes("Repeated")) return "risk";
-  return "";
-}
-
-function LoginScreen({ onLogin }: { onLogin: (user: ApiUser, auth: SessionAuth) => void }) {
-  const [email, setEmail] = useState("admin");
-  const [password, setPassword] = useState("admin123");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError("");
-
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!normalizedEmail || !password) {
-      setError("Please fill in all fields");
+  useEffect(() => {
+    const cached = restoreSession();
+    if (!cached?.token) {
+      saveSession(null);
+      setCheckingSession(false);
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "Invalid email or password");
-      }
-
-      setIsLoading(false);
-      onLogin(data.user, { email: normalizedEmail, password });
-    } catch (error) {
-      setError(error instanceof TypeError ? "Unable to connect to the portal server" : error instanceof Error ? error.message : "Invalid email or password");
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <main className="login-page">
-      <section className="login-stack" aria-labelledby="loginTitle">
-        <div className="login-logo-mark" aria-hidden="true">
-          <span className="wing wing-left" />
-          <span className="wing wing-right" />
-        </div>
-        <div className="login-heading">
-          <h1 id="loginTitle">Learning Portal</h1>
-          <p>Faculty Assignment, Quiz, and Student Monitoring Portal</p>
-        </div>
-
-        <form className="login-panel login-form glass-panel animate-slide-up" onSubmit={handleLogin}>
-          <div className="login-gradient-line" />
-          <h2>Account Login</h2>
-          {error && (
-            <div className="login-error">
-              <CircleAlert size={16} />
-              <span>{error}</span>
-            </div>
-          )}
-          <label>
-            Email or Account Name
-            <span className="login-input">
-              <Mail size={19} />
-              <input
-                type="text"
-                placeholder="admin or name@example.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                disabled={isLoading}
-              />
-            </span>
-          </label>
-          <label>
-            Password
-            <span className="login-input">
-              <KeyRound size={19} />
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                disabled={isLoading}
-              />
-            </span>
-          </label>
-          <button className="button login-button" type="submit">
-            {isLoading ? "Authenticating..." : "Sign In"}
-          </button>
-          <div className="demo-login-actions" aria-label="Demo accounts">
-            <button className="button secondary" type="button" onClick={() => { setEmail("faculty.demo"); setPassword("faculty123"); }}>
-              Faculty demo
-            </button>
-            <button className="button secondary" type="button" onClick={() => { setEmail("student.demo"); setPassword("student123"); }}>
-              Student demo
-            </button>
-          </div>
-        </form>
-      </section>
-    </main>
-  );
-}
-
-function FilterBar({ role }: { role: RoleId }) {
-  return (
-    <div className="filter-bar">
-      {roleConfig[role].filters.map((filter) => (
-        <select aria-label={filter} key={filter}>
-          <option>{filter}</option>
-          <option>All</option>
-          <option>Needs attention</option>
-        </select>
-      ))}
-      <button className="button secondary" type="button">
-        Apply filters
-      </button>
-    </div>
-  );
-}
-
-function PortalKpis({ role, data }: { role: RoleId; data: PortalData }) {
-  const studentCount = data.users.filter((user) => user.role === "student").length;
-  const facultyCount = data.users.filter((user) => user.role === "faculty").length;
-  const inactiveCount = data.users.filter((user) => user.is_active === false).length;
-  const submittedCount = data.assignments.reduce((total, assignment) => total + (assignment.submitted || 0), 0);
-  const trackedSeconds = data.records
-    .filter((record) => record.kind === "time_session")
-    .reduce((total, record) => total + Number(record.metadata.active_seconds || 0), 0);
-
-  const values = {
-    admin: [
-      ["Total Accounts", String(data.users.length), "Portal users", UserCheck],
-      ["Faculty", String(facultyCount), "Faculty accounts", Activity],
-      ["Students", String(studentCount), "Student accounts", UsersIcon],
-      ["Inactive", String(inactiveCount), "Disabled accounts", Settings],
-    ],
-    faculty: [
-      ["Active Tasks", String(data.assignments.length), "Learning tasks", ClipboardList],
-      ["Enrolled Students", String(studentCount), "Student accounts", UsersIcon],
-      ["Submitted", String(submittedCount), "Recorded submissions", FileText],
-      ["Learning Time", shortDuration(trackedSeconds), trackedSeconds ? "Active portal time" : "No time tracked yet", BarChart3],
-    ],
-    student: [
-      ["Pending Work", String(data.assignments.length), "Available tasks", ClipboardList],
-      ["Assigned Groups", String(data.subjects.length), "Learning groups", BookOpen],
-      ["Submitted", String(submittedCount), "Recorded submissions", FileText],
-      ["Learning Time", shortDuration(trackedSeconds), trackedSeconds ? "Your active portal time" : "No time tracked yet", BarChart3],
-    ],
-  } as const;
-
-  return (
-    <section className="portal-kpis" aria-label="Dashboard summary">
-      {values[role].map(([label, value, note, Icon]) => (
-        <article className="portal-kpi" key={label}>
-          <span className="kpi-icon">
-            <Icon size={24} />
-          </span>
-          <div>
-            <p>{label}</p>
-            <strong>{value}</strong>
-            <span>{note}</span>
-          </div>
-        </article>
-      ))}
-    </section>
-  );
-}
-
-function UsersIcon({ size = 24 }: { size?: number }) {
-  return <GraduationCap size={size} />;
-}
-
-function AssignmentWorkbench({
-  role,
-  assignments,
-  subjects: subjectRows,
-  onCreateAssignment,
-}: {
-  role: RoleId;
-  assignments: ApiAssignment[];
-  subjects: ApiSubject[];
-  onCreateAssignment: (body: Record<string, string | number>) => Promise<void>;
-}) {
-  const canManage = role === "faculty";
-  const cards = assignments.map((assignment) => toAssignmentCard(assignment, subjectRows.find((subject) => subject.id === assignment.subject_id)?.name));
-  const [selectedAssignmentTitle, setSelectedAssignmentTitle] = useState(cards[0]?.title ?? "");
-  const [localQuery, setLocalQuery] = useState("");
-  const [draft, setDraft] = useState({ title: "", subjectId: subjectRows[0]?.id ?? "", dueDate: todayDateInputValue(), assigned: "0" });
-  const selectedAssignment = cards.find((assignment) => assignment.title === selectedAssignmentTitle) ?? cards[0] ?? null;
-  const filtered = cards.filter((item) => item.title.toLowerCase().includes(localQuery.toLowerCase()));
+    let active = true;
+    void validateSession(cached.token)
+      .then((validated) => {
+        if (!active) return;
+        saveSession(validated);
+        setSession(validated);
+      })
+      .catch(() => {
+        if (!active) return;
+        saveSession(null);
+        setSession(null);
+      })
+      .finally(() => { if (active) setCheckingSession(false); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
-    if (!selectedAssignmentTitle && cards[0]) setSelectedAssignmentTitle(cards[0].title);
-    if (!draft.subjectId && subjectRows[0]) setDraft((current) => ({ ...current, subjectId: subjectRows[0].id }));
-  }, [cards, draft.subjectId, selectedAssignmentTitle, subjectRows]);
-
-  const submitAssignment = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const subjectId = draft.subjectId || subjectRows[0]?.id;
-    if (!subjectId) return;
-
-    await onCreateAssignment({
-      title: draft.title,
-      subjectId,
-      dueDate: draft.dueDate || todayDateInputValue(),
-      assigned: Number(draft.assigned),
-      submitted: 0,
-      pending: Number(draft.assigned),
-      reviewed: 0,
-    });
-    setDraft({ title: "", subjectId: subjectRows[0]?.id ?? "", dueDate: todayDateInputValue(), assigned: "0" });
-  };
-
-  return (
-    <section className="workbench-grid">
-      <aside className="assignment-rail">
-        <div className="rail-header">
-          <h2>{role === "student" ? "My Activities" : "Assignments"}</h2>
-          {canManage && (
-            <button className="button compact" type="button" onClick={() => document.getElementById("assignmentTitle")?.focus()}>
-              + New
-            </button>
-          )}
-        </div>
-        <label className="search-box rail-search">
-          <Search size={18} />
-          <span>Search assignments</span>
-          <input value={localQuery} type="search" placeholder="Search assignments..." onChange={(event) => setLocalQuery(event.target.value)} />
-        </label>
-        <div className="assignment-list">
-          {filtered.length === 0 && (
-            <div className="empty-state">
-              <h3>No tasks yet</h3>
-              <p>{canManage ? "Create the first assignment or quiz for a student group." : "Your assigned work will appear here."}</p>
-            </div>
-          )}
-          {filtered.map((assignment) => (
-            <button
-              className={`assignment-card ${selectedAssignment?.title === assignment.title ? "selected" : ""}`}
-              type="button"
-              key={assignment.title}
-              onClick={() => setSelectedAssignmentTitle(assignment.title)}
-            >
-              <div className="assignment-title-row">
-                <h3>{assignment.title}</h3>
-                {canManage && <span className="edit-link">Edit</span>}
-              </div>
-              <div className="assignment-meta">
-                <span>{assignment.subject}</span>
-                <span>Due: {assignment.due}</span>
-              </div>
-              <div className="mini-stats">
-                <span>
-                  <strong>{assignment.assigned}</strong>
-                  Assigned
-                </span>
-                <span>
-                  <strong>{assignment.submitted}</strong>
-                  Submitted
-                </span>
-                <span>
-                  <strong>{assignment.pending}</strong>
-                  Pending
-                </span>
-                <span>
-                  <strong>{assignment.reviewed}</strong>
-                  Reviewed
-                </span>
-              </div>
-              <div className="progress strong">
-                <span style={{ width: `${assignment.progress}%` }} />
-              </div>
-            </button>
-          ))}
-        </div>
-      </aside>
-
-      <article className="submission-panel">
-        <p className="eyebrow">{canManage ? "Submission workspace" : "Activity details"}</p>
-        {selectedAssignment ? (
-          <>
-            <h2>{selectedAssignment.title}</h2>
-            <p>{canManage ? "Review submissions, completion, pending students, and time spent for this assignment or quiz." : "View the due date, status, and details for this assignment or quiz."}</p>
-            <select aria-label="Choose assignment">
-              {cards.map((assignment) => (
-                <option key={assignment.title}>{assignment.title} with {assignment.submitted} submission{assignment.submitted === 1 ? "" : "s"}</option>
-              ))}
-            </select>
-            <div className="submission-summary">
-              <div>
-                <strong>{selectedAssignment.submitted}</strong>
-                <span>Submitted</span>
-              </div>
-              <div>
-                <strong>{selectedAssignment.pending}</strong>
-                <span>Pending</span>
-              </div>
-              <div>
-                <strong>{selectedAssignment.reviewed}</strong>
-                <span>Reviewed</span>
-              </div>
-              <div>
-                <strong>{selectedAssignment.progress}%</strong>
-                <span>Completion</span>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="empty-state large">
-            <h2>{canManage ? "Select or create a task" : "No assigned work"}</h2>
-            <p>{canManage ? "No assignments or quizzes have been created yet." : "New assignments and quizzes will appear here."}</p>
-          </div>
-        )}
-        {canManage && <form className="form-grid inline-form" onSubmit={submitAssignment}>
-          <label>
-            Task title
-            <input
-              id="assignmentTitle"
-              required
-              value={draft.title}
-              onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
-              placeholder="Weekly coding assignment or quiz"
-            />
-          </label>
-          <label>
-            Student group
-            <select required value={draft.subjectId} onChange={(event) => setDraft((current) => ({ ...current, subjectId: event.target.value }))}>
-              <option value="" disabled>
-                Create a student group first
-              </option>
-              {subjectRows.map((subject) => (
-                <option value={subject.id} key={subject.id}>
-                  {subject.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Due date
-            <input required type="date" value={draft.dueDate} onChange={(event) => setDraft((current) => ({ ...current, dueDate: event.target.value }))} />
-          </label>
-          <label>
-            Assigned count
-            <input required min="0" type="number" value={draft.assigned} onChange={(event) => setDraft((current) => ({ ...current, assigned: event.target.value }))} />
-          </label>
-          <div className="actions full-width">
-            <button className="button" type="submit" disabled={subjectRows.length === 0}>
-              Create assignment / quiz
-            </button>
-          </div>
-        </form>}
-      </article>
-    </section>
-  );
-}
-
-function moduleCards(type: SubjectType) {
-  return [
-    [
-      "Assignments",
-      "Create, assign, and track submitted or pending assignments for this group.",
-      type !== "Lab Only",
-      FileText,
-    ],
-    [
-      "Quizzes",
-      "Create quick checks, score quiz attempts, and identify students who need follow-up.",
-      type !== "Theory Only",
-      Activity,
-    ],
-    [
-      "Submissions",
-      "Review submitted work, pending students, scores, feedback, and reattempts.",
-      true,
-      ClipboardList,
-    ],
-    [
-      "Learning Time",
-      "Monitor platform time, inactive students, and repeated low-engagement patterns.",
-      true,
-      BarChart3,
-    ],
-  ] as const;
-}
-
-function Workspace({
-  subjects: subjectRows,
-  selectedSubject,
-  setSelectedSubject,
-  onOpen,
-  onCreateSubject,
-}: {
-  subjects: ApiSubject[];
-  selectedSubject: number;
-  setSelectedSubject: (index: number) => void;
-  onOpen: (subject: Subject) => void;
-  onCreateSubject: (body: Record<string, string>) => Promise<void>;
-}) {
-  const subjectCards = subjectRows.map(toSubjectCard);
-  const subject = subjectCards[selectedSubject];
-  const [draft, setDraft] = useState({ name: "", type: "Theory + Lab" as SubjectType, semester: "", section: "" });
-
-  const submitSubject = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    await onCreateSubject(draft);
-    setDraft({ name: "", type: "Theory + Lab", semester: "", section: "" });
-  };
-
-  if (!subject) {
-    return (
-      <section className="workspace-layout">
-        <article className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Student Groups</h2>
-              <p>Create only the groups faculty need for assigning and monitoring work.</p>
-            </div>
-          </div>
-          <div className="empty-state">
-            <h3>No student groups yet</h3>
-            <p>Create a group such as CSE A or Python Batch 1 to assign work.</p>
-          </div>
-        </article>
-
-        <article className="panel">
-          <div className="empty-state large">
-            <h2>No group selected</h2>
-            <p>Student groups will appear here after they are created.</p>
-          </div>
-          <SubjectForm draft={draft} setDraft={setDraft} onSubmit={submitSubject} />
-        </article>
-      </section>
-    );
-  }
-
-  return (
-    <section className="workspace-layout">
-      <article className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>Student Groups</h2>
-            <p>Assign tasks and quizzes to these groups, then monitor submissions and time spent.</p>
-          </div>
-        </div>
-        {subjectCards.map((item, index) => (
-          <button
-            className={`subject-card ${index === selectedSubject ? "selected" : ""}`}
-            key={item.name}
-            type="button"
-            onClick={() => setSelectedSubject(index)}
-          >
-            <h3>{item.name}</h3>
-            <p>
-              {item.semester} / {item.section}
-            </p>
-            <span className={`badge ${badgeClass(item.type)}`}>{workTypeLabel(item.type)}</span>
-          </button>
-        ))}
-      </article>
-
-      <article className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>{subject.name}</h2>
-            <p>
-              Assignment and monitoring group for {subject.semester} {subject.section}
-            </p>
-          </div>
-          <button className="button" type="button" onClick={() => onOpen(subject)}>
-            Open group
-          </button>
-        </div>
-        <div className="tabs">
-          <button className="tab-button active" type="button">
-            Assignments
-          </button>
-          <button className="tab-button" type="button">
-            Quizzes
-          </button>
-          <button className="tab-button" type="button">
-            Submissions
-          </button>
-          <button className="tab-button" type="button">
-            Time spent
-          </button>
-        </div>
-        <div className="module-grid">
-          {moduleCards(subject.type)
-            .filter(([, , enabled]) => enabled)
-            .map(([title, body, , Icon]) => (
-              <div className="profile-card" key={title}>
-                <Icon size={22} />
-                <h3>{title}</h3>
-                <p>{body}</p>
-                <button className="button secondary" type="button">
-                  Manage
-                </button>
-              </div>
-            ))}
-        </div>
-        <SubjectForm draft={draft} setDraft={setDraft} onSubmit={submitSubject} />
-      </article>
-    </section>
-  );
-}
-
-function SubjectForm({
-  draft,
-  setDraft,
-  onSubmit,
-}: {
-  draft: { name: string; type: SubjectType; semester: string; section: string };
-  setDraft: React.Dispatch<React.SetStateAction<{ name: string; type: SubjectType; semester: string; section: string }>>;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
-}) {
-  return (
-    <form className="form-grid inline-form" onSubmit={onSubmit}>
-      <label>
-        Group name
-        <input required value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="CSE A or Python Batch 1" />
-      </label>
-      <label>
-        Work type
-        <select value={draft.type} onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value as SubjectType }))}>
-          <option value="Theory Only">Assignments only</option>
-          <option value="Lab Only">Quizzes only</option>
-          <option value="Theory + Lab">Assignments + quizzes</option>
-        </select>
-      </label>
-      <label>
-        Group label
-        <input required value={draft.semester} onChange={(event) => setDraft((current) => ({ ...current, semester: event.target.value }))} placeholder="Batch 2026" />
-      </label>
-      <label>
-        Section or batch
-        <input required value={draft.section} onChange={(event) => setDraft((current) => ({ ...current, section: event.target.value }))} placeholder="Group A" />
-      </label>
-      <div className="actions full-width">
-        <button className="button" type="submit">
-          Create group
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function Resources({ role, users }: { role: RoleId; users: ApiUser[] }) {
-  const students = users.filter((user) => user.role === "student");
-
-  return (
-    <section className="panel">
-      <div className="panel-header">
-        <div>
-          <h2>Students</h2>
-          <p>Students added here can receive assignments and quizzes from faculty.</p>
-        </div>
-        <button className="button" type="button" onClick={() => document.querySelector<HTMLInputElement>('input[placeholder="Student or faculty name"]')?.focus()}>
-          Add student
-        </button>
-      </div>
-      <FilterBar role={role} />
-      <div className="list-stack">
-        {students.length === 0 && (
-          <div className="empty-state">
-            <h3>No students yet</h3>
-            <p>Create student accounts from the Accounts tab to begin assigning work.</p>
-          </div>
-        )}
-        {students.map((student) => (
-          <div className="list-row" key={student.id}>
-            <div>
-              <h3>{student.name}</h3>
-              <p>{accountLabel(student)}</p>
-            </div>
-            <div className="actions">
-              <span className="badge">Student</span>
-              <span className="muted">{student.is_active === false ? "Inactive" : "Active"}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function Activities({ role, assignments, subjects: subjectRows, onCreateAssignment }: { role: RoleId; assignments: ApiAssignment[]; subjects: ApiSubject[]; onCreateAssignment: (body: Record<string, string | number>) => Promise<void> }) {
-  const cards = assignments.map((assignment) => toAssignmentCard(assignment, subjectRows.find((subject) => subject.id === assignment.subject_id)?.name));
-
-  return (
-    <section className="panel">
-      <div className="panel-header">
-        <div>
-          <h2>Assessments and Activities</h2>
-          <p>Tasks with due dates, completion status, quiz scores, submissions, and feedback.</p>
-        </div>
-        {role === "faculty" && (
-          <button className="button" type="button" onClick={() => document.getElementById("assignmentTitle")?.focus()}>
-            Create activity
-          </button>
-        )}
-      </div>
-      <FilterBar role={role} />
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Activity</th>
-              <th>Type</th>
-              <th>Group</th>
-              <th>Due</th>
-              <th>Status</th>
-              <th>Evaluation</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cards.length === 0 && (
-              <tr>
-                <td colSpan={6}>
-                  <div className="empty-state">
-                    <h3>No activities yet</h3>
-                    <p>Assignments and quizzes will appear here.</p>
-                  </div>
-                </td>
-              </tr>
-            )}
-            {cards.map((assignment) => (
-              <tr key={assignment.title}>
-                <td data-label="Activity">
-                  <strong>{assignment.title}</strong>
-                </td>
-                <td data-label="Type">Assignment</td>
-                <td data-label="Group">{assignment.subject}</td>
-                <td data-label="Due">{assignment.due}</td>
-                <td data-label="Status">
-                  <span className="badge">{assignment.pending > 0 ? "Open" : "Complete"}</span>
-                </td>
-                <td data-label="Evaluation">{assignment.reviewed} reviewed</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <AssignmentWorkbench role={role} assignments={assignments} subjects={subjectRows} onCreateAssignment={onCreateAssignment} />
-    </section>
-  );
-}
-
-function AdminOverview({ users, onManageUsers }: { users: ApiUser[]; onManageUsers: () => void }) {
-  const facultyCount = users.filter((user) => user.role === "faculty").length;
-  const studentCount = users.filter((user) => user.role === "student").length;
-
-  return (
-    <section className="content-grid">
-      <article className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="eyebrow">Portal access</p>
-            <h2>Manage faculty and student accounts</h2>
-            <p>Create login accounts, assign the correct role, and disable access when needed.</p>
-          </div>
-          <button className="button" type="button" onClick={onManageUsers}>
-            Manage users
-          </button>
-        </div>
-        <div className="submission-summary">
-          <div><strong>{facultyCount}</strong><span>Faculty</span></div>
-          <div><strong>{studentCount}</strong><span>Students</span></div>
-          <div><strong>{users.filter((user) => user.is_active !== false).length}</strong><span>Active</span></div>
-          <div><strong>{users.filter((user) => user.is_active === false).length}</strong><span>Inactive</span></div>
-        </div>
-      </article>
-      <aside className="panel">
-        <h2>Recent accounts</h2>
-        <div className="list-stack">
-          {users.slice(0, 5).map((user) => (
-            <div className="list-row" key={user.id}>
-              <div><h3>{user.name}</h3><p>{accountLabel(user)}</p></div>
-              <span className="badge">{user.role === "admin" ? "Super Admin" : user.role}</span>
-            </div>
-          ))}
-        </div>
-      </aside>
-    </section>
-  );
-}
-
-function SettingsView({ users, onCreateUser, onUpdateUser, onToggleUser }: { users: ApiUser[]; onCreateUser: (body: Record<string, string>) => Promise<void>; onUpdateUser: (body: Record<string, string>) => Promise<void>; onToggleUser: (user: ApiUser) => Promise<void> }) {
-  const emptyDraft = { name: "", email: "", password: "", role: "student" as RoleId, title: "", rollNumber: "", batch: "DBMS-A" };
-  const [draft, setDraft] = useState(emptyDraft);
-  const [editingId, setEditingId] = useState("");
-
-  const submitUser = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (editingId) await onUpdateUser({ id: editingId, ...draft });
-    else await onCreateUser(draft);
-    setDraft(emptyDraft);
-    setEditingId("");
-  };
-
-  const editUser = (user: ApiUser) => {
-    setEditingId(user.id);
-    setDraft({ name: user.name, email: user.email, password: "", role: user.role, title: user.title ?? "", rollNumber: user.roll_number ?? "", batch: user.batch ?? "DBMS-A" });
-  };
-
-  return (
-    <section className="content-grid">
-      <article className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>{editingId ? "Edit Account" : "Create Account"}</h2>
-            <p>Create faculty and student accounts with the details needed for roster monitoring.</p>
-          </div>
-        </div>
-        <form className="form-grid" onSubmit={submitUser}>
-          <label>
-            Name
-            <input required value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Student or faculty name" />
-          </label>
-          <label>
-            Email
-            <input required type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} placeholder="person@learningportal.test" />
-          </label>
-          <label>
-            Password
-            <input required={!editingId} value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} placeholder={editingId ? "Leave blank to keep password" : "Temporary password"} />
-          </label>
-          <label>
-            Role
-            <select value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value as RoleId }))}>
-              <option value="student">Student</option>
-              <option value="faculty">Faculty</option>
-            </select>
-          </label>
-          {draft.role === "student" && <><label>
-            Roll number
-            <input required value={draft.rollNumber} onChange={(event) => setDraft((current) => ({ ...current, rollNumber: event.target.value }))} placeholder="DEMO-DBMS-02" />
-          </label>
-          <label>
-            Batch
-            <input required value={draft.batch} onChange={(event) => setDraft((current) => ({ ...current, batch: event.target.value }))} placeholder="DBMS-A" />
-          </label></>}
-          <label className="full-width">
-            Title
-            <input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Student or Faculty" />
-          </label>
-          <div className="actions full-width">
-            <button className="button" type="submit">{editingId ? "Save changes" : "Create account"}</button>
-            {editingId && <button className="button secondary" type="button" onClick={() => { setEditingId(""); setDraft(emptyDraft); }}>Cancel</button>}
-          </div>
-        </form>
-      </article>
-      <aside className="panel user-management-panel">
-        <div className="panel-header"><div><h2>Manage Users</h2><p>{users.length} registered accounts</p></div></div>
-        <div className="list-stack user-account-list">
-          {users.map((user) => (
-            <div className="list-row" key={user.id}>
-              <div>
-                <h3>{user.name}</h3>
-                <p>{user.email}</p>
-                {user.role === "student" && <small>{user.roll_number || "No roll number"} · {user.batch || "No batch"}</small>}
-              </div>
-              <div className="actions">
-                <span className="badge">{user.role === "admin" ? "Super Admin" : user.role}</span>
-                <button className="icon-button" type="button" title="Edit account" disabled={user.role === "admin"} onClick={() => editUser(user)}><Pencil size={15} /></button>
-                <button
-                  className="button secondary compact"
-                  type="button"
-                  disabled={user.role === "admin"}
-                  onClick={() => void onToggleUser(user)}
-                >
-                  {user.is_active === false ? "Activate" : "Deactivate"}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </aside>
-    </section>
-  );
-}
-
-function DetailModal({ subject, onClose }: { subject: Subject | null; onClose: () => void }) {
-  if (!subject) return null;
-  return (
-    <div className="modal open" role="dialog" aria-modal="true" aria-labelledby="modalTitle" onMouseDown={onClose}>
-      <div className="modal-panel" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="modal-header">
-          <div>
-            <p className="eyebrow">Group detail</p>
-            <h2 id="modalTitle">{subject.name}</h2>
-          </div>
-          <button className="icon-button" type="button" aria-label="Close modal" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
-        <div className="modal-body">
-          <div className="profile-grid">
-            <div className="profile-card">
-              <strong>{workTypeLabel(subject.type)}</strong>
-              <p>Work type</p>
-            </div>
-            <div className="profile-card">
-              <strong>{subject.progress}%</strong>
-              <p>Completion progress</p>
-            </div>
-            <div className="profile-card">
-              <strong>{subject.pending}</strong>
-              <p>Pending tasks</p>
-            </div>
-          </div>
-          <h3>Assignments and quizzes</h3>
-          <p>Faculty can create tasks, set due dates, and monitor submitted, pending, and reviewed work.</p>
-          <h3>Student monitoring</h3>
-          <p>Track completion, quiz attempts, feedback, and time spent learning on the platform.</p>
-          <h3>Follow-up signals</h3>
-          <p>Use pending work and low activity to identify students who need support.</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function App() {
-  const [role, setRole] = useState<RoleId>("admin");
-  const [sessionName, setSessionName] = useState("admin");
-  const [sessionAuth, setSessionAuth] = useState<SessionAuth | null>(null);
-  const [sessionUser, setSessionUser] = useState<ApiUser | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [view, setView] = useState<ViewId>("overview");
-  const [query, setQuery] = useState("");
-  const [selectedSubjectIndex, setSelectedSubjectIndex] = useState(0);
-  const [modalSubject, setModalSubject] = useState<Subject | null>(null);
-  const [portalData, setPortalData] = useState<PortalData>(emptyPortalData);
-  const [statusMessage, setStatusMessage] = useState("");
-  const lastActivityRef = useRef(Date.now());
-
-  const filteredData = useMemo(() => {
-    const search = query.trim().toLowerCase();
-    if (!search) return portalData;
-
-    return {
-      users: portalData.users.filter((user) => `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(search)),
-      subjects: portalData.subjects.filter((subject) => `${subject.name} ${subject.semester} ${subject.section}`.toLowerCase().includes(search)),
-      assignments: portalData.assignments.filter((assignment) => `${assignment.title} ${assignment.subjects?.name ?? ""}`.toLowerCase().includes(search)),
-      records: portalData.records.filter((record) => `${record.title} ${record.body} ${record.kind}`.toLowerCase().includes(search)),
-      people: portalData.people,
-      learning: portalData.learning.filter((record) => `${record.title} ${record.body} ${record.kind}`.toLowerCase().includes(search)),
-      aiConfigured: portalData.aiConfigured,
-    };
-  }, [portalData, query]);
-
-  const authHeaders = () => ({
-    "Content-Type": "application/json",
-    ...(sessionAuth ? { "X-User-Email": sessionAuth.email, "X-User-Password": sessionAuth.password } : {}),
-  });
-
-  const apiRequest = async <T,>(path: string, options: RequestInit = {}) => {
-    const response = await fetch(`${API_BASE_URL}${path}`, options);
-    const data = (await response.json()) as T & { error?: string };
-    if (!response.ok) throw new Error(data.error ?? "Request failed");
-    return data;
-  };
-
-  const loadPortalData = async () => {
-    const headers = authHeaders();
-    const usersPromise = role === "student"
-      ? Promise.resolve({ users: [] as ApiUser[] })
-      : apiRequest<{ users: ApiUser[] }>("/api/users", { headers });
-    const subjectsPromise = role === "admin"
-      ? Promise.resolve({ subjects: [] as ApiSubject[] })
-      : apiRequest<{ subjects: ApiSubject[] }>("/api/subjects", { headers });
-    const assignmentsPromise = role === "admin"
-      ? Promise.resolve({ assignments: [] as ApiAssignment[] })
-      : apiRequest<{ assignments: ApiAssignment[] }>("/api/assignments", { headers });
-    const engagementPromise = role === "admin"
-      ? Promise.resolve({ records: [] as EngagementRecord[], people: [] as PortalPerson[] })
-      : apiRequest<{ records: EngagementRecord[]; people: PortalPerson[] }>("/api/engagement", { headers });
-    const learningPromise = role === "admin"
-      ? Promise.resolve({ records: [] as LearningRecord[], people: [] as PortalPerson[], aiConfigured: false })
-      : apiRequest<{ records: LearningRecord[]; people: PortalPerson[]; aiConfigured: boolean }>("/api/learning", { headers });
-
-    const [usersResponse, subjectsResponse, assignmentsResponse, engagementResponse, learningResponse] = await Promise.all([
-      usersPromise,
-      subjectsPromise,
-      assignmentsPromise,
-      engagementPromise,
-      learningPromise,
-    ]);
-
-    setPortalData({
-      users: usersResponse.users,
-      subjects: subjectsResponse.subjects,
-      assignments: assignmentsResponse.assignments,
-      records: engagementResponse.records,
-      people: role === "admin" ? usersResponse.users.map(({ id, name, role: userRole }) => ({ id, name, role: userRole })) : learningResponse.people,
-      learning: learningResponse.records,
-      aiConfigured: learningResponse.aiConfigured,
-    });
-  };
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [view]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-    loadPortalData().catch((error) => setStatusMessage(error instanceof Error ? error.message : "Unable to load portal data"));
-  }, [isAuthenticated, role]);
-
-  const createUser = async (body: Record<string, string>) => {
-    try {
-      await apiRequest<{ user: ApiUser }>("/api/users", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify(body),
-      });
-      setStatusMessage("Account created");
-      await loadPortalData();
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to create account");
-      throw error;
+    if (!session) return;
+    let active = true;
+    void loadStudentOverview(session.token).then((data) => {
+      if (!active) return;
+      setEnrollments(data.enrollments.filter((item) => session.user.role !== "student" || item.userId === session.user.id));
+      setLearningResources(data.resources);
+    }).catch(() => undefined);
+    if (session.user.role === "student") {
+      void loadCoursework(session.token, false).then((data) => {
+        if (!active) return;
+        setDashboardAssignments(data.assignments);
+        setDashboardSubmissions(data.submissions);
+      }).catch(() => undefined);
     }
-  };
+    return () => { active = false; };
+  }, [session]);
 
-  const toggleUser = async (user: ApiUser) => {
-    try {
-      const nextActive = user.is_active === false;
-      await apiRequest<{ user: ApiUser }>("/api/users", {
-        method: "PATCH",
-        headers: authHeaders(),
-        body: JSON.stringify({ id: user.id, isActive: nextActive }),
-      });
-      setStatusMessage(`${user.name} ${nextActive ? "activated" : "deactivated"}`);
-      await loadPortalData();
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to update account");
-      throw error;
-    }
-  };
-
-  const updateUser = async (body: Record<string, string>) => {
-    try {
-      await apiRequest<{ user: ApiUser }>("/api/users", {
-        method: "PATCH",
-        headers: authHeaders(),
-        body: JSON.stringify(body),
-      });
-      setStatusMessage("Account updated");
-      await loadPortalData();
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to update account");
-      throw error;
-    }
-  };
-
-  const createSubject = async (body: Record<string, string>) => {
-    try {
-      await apiRequest<{ subject: ApiSubject }>("/api/subjects", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify(body),
-      });
-    setStatusMessage("Group created");
-      await loadPortalData();
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to create group");
-      throw error;
-    }
-  };
-
-  const createAssignment = async (body: Record<string, unknown>) => {
-    try {
-      await apiRequest<{ assignment: ApiAssignment }>("/api/assignments", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify(body),
-      });
-      setStatusMessage("Task created");
-      await loadPortalData();
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to create task");
-      throw error;
-    }
-  };
-
-  const updateAssignment = async (body: Record<string, unknown>) => {
-    try {
-      await apiRequest<{ assignment: ApiAssignment }>("/api/assignments", {
-        method: "PATCH",
-        headers: authHeaders(),
-        body: JSON.stringify(body),
-      });
-      setStatusMessage("Assignment updated");
-      await loadPortalData();
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to update assignment");
-      throw error;
-    }
-  };
-
-  const deleteAssignment = async (id: string) => {
-    if (!window.confirm("Delete this assignment and its linked learning records?")) return;
-    try {
-      await apiRequest<{ assignment: ApiAssignment }>("/api/assignments", {
-        method: "DELETE",
-        headers: authHeaders(),
-        body: JSON.stringify({ id }),
-      });
-      setStatusMessage("Assignment deleted");
-      await loadPortalData();
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to delete assignment");
-      throw error;
-    }
-  };
-
-  const learningAction = async (body: Record<string, unknown>) => {
-    try {
-      await apiRequest<{ record: LearningRecord }>("/api/learning", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify(body),
-      });
-      const message = body.kind === "chat"
-        ? "AI guidance received"
-        : body.kind === "submission"
-          ? "Submission saved"
-          : body.kind === "question"
-            ? "Question added"
-            : body.action === "scan"
-              ? "Similarity scan completed"
-              : body.action === "review"
-                ? "Faculty evaluation saved"
-                : body.action === "submit_started"
-                  ? "Started drafts moved to submitted"
-                  : "Auto-grade completed; faculty review is recommended";
-      setStatusMessage(message);
-      await loadPortalData();
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to complete learning action");
-      throw error;
-    }
-  };
-
-  const updateLearning = async (body: Record<string, unknown>) => {
-    try {
-      await apiRequest<{ record: LearningRecord }>("/api/learning", {
-        method: "PATCH",
-        headers: authHeaders(),
-        body: JSON.stringify(body),
-      });
-      setStatusMessage("Question updated");
-      await loadPortalData();
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to update question");
-      throw error;
-    }
-  };
-
-  const deleteLearning = async (id: string) => {
-    if (!window.confirm("Delete this question from the question bank?")) return;
-    try {
-      await apiRequest<{ record: LearningRecord }>("/api/learning", {
-        method: "DELETE",
-        headers: authHeaders(),
-        body: JSON.stringify({ id }),
-      });
-      setStatusMessage("Question deleted");
-      await loadPortalData();
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to delete question");
-      throw error;
-    }
-  };
-
-  const createEngagement = async (body: Record<string, unknown>, options: { quiet?: boolean } = {}) => {
-    try {
-      const response = await apiRequest<{ record: EngagementRecord }>("/api/engagement", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify(body),
-      });
-      if (options.quiet) {
-        setPortalData((current) => ({
-          ...current,
-          records: [response.record, ...current.records.filter((record) => record.id !== response.record.id)],
-        }));
-      } else {
-        setStatusMessage("Engagement update saved");
-        await loadPortalData();
-      }
-    } catch (error) {
-      if (!options.quiet) setStatusMessage(error instanceof Error ? error.message : "Unable to save engagement update");
-      if (!options.quiet) throw error;
-    }
-  };
-
-  const updateEngagement = async (id: string, body: Record<string, unknown>) => {
-    try {
-      await apiRequest<{ record: EngagementRecord }>("/api/engagement", {
-        method: "PATCH",
-        headers: authHeaders(),
-        body: JSON.stringify({ id, ...body }),
-      });
-      setStatusMessage("Engagement update saved");
-      await loadPortalData();
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to update engagement record");
-      throw error;
-    }
-  };
-
-  useEffect(() => {
-    if (!isAuthenticated || role !== "student" || !sessionUser) return;
-
-    const markActive = () => { lastActivityRef.current = Date.now(); };
-    const sessionId = `time-${sessionUser.id}-${new Date().toISOString().slice(0, 10)}`;
-    const heartbeat = (deltaSeconds: number) => {
-      if (document.visibilityState !== "visible") return;
-      if (Date.now() - lastActivityRef.current > 60_000) return;
-      void createEngagement({
-        id: sessionId,
-        kind: "time_session",
-        title: "Active portal learning",
-        status: "active",
-        metadata: { delta_seconds: deltaSeconds, context: view },
-      }, { quiet: true });
-    };
-
-    window.addEventListener("pointerdown", markActive);
-    window.addEventListener("keydown", markActive);
-    window.addEventListener("scroll", markActive, { passive: true });
-    heartbeat(0);
-    const interval = window.setInterval(() => heartbeat(30), 30_000);
-
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("pointerdown", markActive);
-      window.removeEventListener("keydown", markActive);
-      window.removeEventListener("scroll", markActive);
-    };
-  }, [isAuthenticated, role, sessionUser?.id, view]);
-
-  const goToView = (nextView: ViewId) => {
-    setView(nextView);
-  };
-
-  const login = (user: ApiUser, auth: SessionAuth) => {
-    setPortalData(emptyPortalData());
-    setStatusMessage("");
-    setRole(user.role);
-    setSessionAuth(auth);
-    setSessionUser(user);
-    setSessionName(user.name);
-    setView("overview");
-    setQuery("");
-    setIsAuthenticated(true);
-    window.history.replaceState(null, "", `/${user.role}/dashboard`);
+  const handleAuthenticated = (nextSession: AuthSession) => {
+    saveSession(nextSession);
+    setSession(nextSession);
+    setEnrollments([]);
+    setLearningResources([]);
+    setDashboardAssignments([]);
+    setDashboardSubmissions([]);
+    setView("dashboard");
   };
 
   const logout = () => {
-    setPortalData(emptyPortalData());
-    setStatusMessage("");
-    setIsAuthenticated(false);
-    setSessionAuth(null);
-    setSessionUser(null);
-    setModalSubject(null);
-    window.history.replaceState(null, "", "/login");
+    saveSession(null);
+    setSession(null);
+    setView("dashboard");
   };
 
-  if (!isAuthenticated) {
-    return <LoginScreen onLogin={login} />;
-  }
+  const emitActivity = useCallback((event: ActivityLog) => {
+    if (!session) return;
+    void logActivity(session.token, { ...event, userId: session.user.id });
+  }, [session]);
 
-  const navigation = navigationByRole[role];
-  const currentPerson: PortalPerson = {
-    id: sessionUser?.id ?? "",
-    name: sessionUser?.name ?? sessionName,
-    role,
-  };
+  const isStudent = session?.user.role === "student";
+  const navigation = isStudent ? studentNavigation : facultyNavigation;
+  const [title, subtitle] = pageTitle(view);
+
+  const content = useMemo(() => {
+    if (!session) return null;
+    if (view === "dashboard") {
+      return isStudent ? (
+        <StudentDashboard
+          user={session.user}
+          courses={courses}
+          enrollments={enrollments}
+          resources={learningResources}
+          assignments={dashboardAssignments}
+          submissions={dashboardSubmissions}
+          onNavigate={setView}
+          onEnroll={async (courseId) => {
+            await enrollInCourse(session.token, courseId);
+            setEnrollments((current) => current.some((item) => item.courseId === courseId)
+              ? current
+              : [...current, { id: crypto.randomUUID(), courseId, userId: session.user.id, tracks: ["theory", "lab"], progress: 0, studyMinutes: 0, status: "active" }]);
+          }}
+        />
+      ) : <FacultyAnalytics session={session} compact />;
+    }
+    if (view === "learn") return <ResourceViewer user={session.user} resources={learningResources} onEvent={emitActivity} />;
+    if (view === "coursework") return <CourseworkManager session={session} initialType="practice" theme={theme} onEvent={emitActivity} />;
+    if (view === "lab") return <CourseworkManager session={session} initialType="lab" theme={theme} onEvent={emitActivity} />;
+    if (view === "resources") return <FacultyResourceManager token={session.token} resources={learningResources} onChange={setLearningResources} />;
+    if (view === "telemetry") return <FacultyAnalytics session={session} />;
+    return <CourseworkManager session={session} initialType="assessment" theme={theme} onEvent={emitActivity} />;
+  }, [dashboardAssignments, dashboardSubmissions, emitActivity, enrollments, isStudent, learningResources, session, theme, view]);
+
+  if (checkingSession) return <main className="grid min-h-screen place-items-center bg-[var(--page)] text-[var(--ink)]"><div className="flex items-center gap-3 text-sm text-[var(--muted)]"><span className="size-5 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />Verifying session...</div></main>;
+  if (!session) return <AuthScreen onAuthenticated={handleAuthenticated} theme={theme} onToggleTheme={() => setTheme((current) => current === "light" ? "dark" : "light")} />;
 
   return (
-    <div className="portal-shell">
-      <header className="portal-header">
-        <div className="brand">
-          <div className="brand-mark">L</div>
-          <div>
-            <strong>Learning Portal</strong>
-            <span>Faculty assignment and monitoring</span>
-          </div>
-        </div>
-        <div className="portal-user">
-          <div className="user-avatar">
-            <UserCheck size={18} />
-          </div>
-          <div>
-            <strong>{sessionName}</strong>
-            <span>{roleProfiles[role].label}</span>
-          </div>
-          <button className="button secondary exit-button" type="button" onClick={logout}>
-            <LogOut size={17} />
-            Exit
+    <div className="min-h-screen bg-[var(--page)] text-[var(--ink)] transition-colors">
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[268px] flex-col border-r border-[var(--line)] bg-[var(--sidebar)]/95 px-4 py-5 backdrop-blur-xl transition-transform lg:translate-x-0 ${mobileNavOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="flex h-12 items-center justify-between px-2">
+          <button className="flex items-center gap-3 text-left" onClick={() => setView("dashboard")} type="button">
+            <span className="grid size-10 place-items-center rounded-lg bg-cyan-400 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,.2)]">
+              <Command size={21} strokeWidth={2.5} />
+            </span>
+            <span>
+              <strong className="block text-[15px] leading-tight text-[var(--ink)]">KG Reddy CET</strong>
+              <span className="text-xs text-[var(--muted)]">Academic Learning Platform</span>
+            </span>
           </button>
+          <button className="icon-button mobile-only" onClick={() => setMobileNavOpen(false)} type="button" aria-label="Close navigation"><X size={18} /></button>
         </div>
-      </header>
 
-      <main className="portal-main">
-        <section className={`portal-title-row ${role === "admin" ? "" : "compact-title-row"}`}>
-          <div>
-            <p className="eyebrow">{role === "admin" ? "Portal Administration" : role === "faculty" ? "Faculty Monitoring Platform" : "Student Learning Portal"}</p>
-            <h1>{roleProfiles[role].title}</h1>
-            <p className="page-subtitle">{roleProfiles[role].subtitle}</p>
-          </div>
-          <label className="search-box portal-search">
-            <Search size={18} />
-            <span>Search</span>
-            <input
-              value={query}
-              type="search"
-              placeholder="Search groups, students, assignments..."
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setView("overview");
-              }}
-            />
-          </label>
-        </section>
-
-        {role === "admin" && <PortalKpis role={role} data={portalData} />}
-        {statusMessage && (
-          <div className="status-banner" role="status">
-            {statusMessage}
-          </div>
-        )}
-
-        <nav className="portal-tabs" aria-label="Dashboard modules">
-          {navigation.map(({ id, label }) => (
-            <button className={view === id ? "active" : ""} type="button" key={id} onClick={() => goToView(id)}>
-              {label}
-            </button>
-          ))}
+        <nav className="mt-9 space-y-1" aria-label="Primary navigation">
+          <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--muted)]">Workspace</p>
+          {navigation.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                className={`nav-item ${view === item.id ? "active" : ""}`}
+                key={item.id}
+                onClick={() => { setView(item.id); setMobileNavOpen(false); }}
+                type="button"
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
 
-        <section className="dashboard-content" aria-live="polite">
-          {view === "overview" && role === "admin" && <AdminOverview users={filteredData.users} onManageUsers={() => goToView("settings")} />}
-          {view === "overview" && role !== "admin" && <AssignmentWorkspace role={role} currentUserId={currentPerson.id} assignments={filteredData.assignments} subjects={filteredData.subjects} people={filteredData.people} learning={filteredData.learning} onCreateAssignment={createAssignment} onUpdateAssignment={updateAssignment} onDeleteAssignment={deleteAssignment} onLearningAction={learningAction} onOpenAi={() => goToView("aiSupport")} />}
-          {view === "workspace" && role === "faculty" && (
-            <Workspace
-              subjects={filteredData.subjects}
-              selectedSubject={selectedSubjectIndex}
-              setSelectedSubject={setSelectedSubjectIndex}
-              onOpen={setModalSubject}
-              onCreateSubject={createSubject}
-            />
-          )}
-          {view === "resources" && role === "faculty" && <Resources role={role} users={filteredData.users} />}
-          {view === "activities" && role !== "admin" && <Activities role={role} assignments={filteredData.assignments} subjects={filteredData.subjects} onCreateAssignment={createAssignment} />}
-          {view === "questionBank" && role === "faculty" && <QuestionBank assignments={filteredData.assignments} records={filteredData.learning} onCreate={learningAction} onUpdate={updateLearning} onDelete={deleteLearning} />}
-          {view === "marksExport" && role === "faculty" && <MarksExport assignments={filteredData.assignments} records={filteredData.learning} people={filteredData.people} />}
-          {view === "aiExport" && role === "faculty" && <AiChatExport assignments={filteredData.assignments} records={filteredData.learning} people={filteredData.people} />}
-          {view === "roster" && role === "faculty" && <StudentRoster people={filteredData.people} learning={filteredData.learning} engagement={filteredData.records} />}
-          {view === "aiSupport" && role === "student" && <AiAssignmentSupport currentUserId={currentPerson.id} assignments={filteredData.assignments} records={filteredData.learning} onCreate={learningAction} />}
-          {view === "engagement" && role !== "admin" && (
-            <EngagementHub
-              role={role}
-              currentUser={currentPerson}
-              records={filteredData.records}
-              people={filteredData.people}
-              onCreate={createEngagement}
-              onUpdate={updateEngagement}
-            />
-          )}
-          {view === "analytics" && role !== "admin" && <TimeMonitor role={role} currentUser={currentPerson} records={filteredData.records} people={filteredData.people} />}
-          {view === "settings" && role === "admin" && <SettingsView users={filteredData.users} onCreateUser={createUser} onUpdateUser={updateUser} onToggleUser={toggleUser} />}
-        </section>
-      </main>
+        <div className="mt-8 border-t border-[var(--line)] pt-5">
+          <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--muted)]">Account</p>
+          <button className="nav-item" type="button"><Settings size={18} /><span>Settings</span></button>
+        </div>
 
-      <nav className="bottom-nav" aria-label="Mobile navigation">
-        {navigation.map(({ id, label, icon: Icon }) => (
-          <button className={`bottom-item ${view === id ? "active" : ""}`} type="button" key={id} onClick={() => goToView(id)}>
-            <Icon size={18} />
-            <span>{id === "aiSupport" ? "AI Support" : label}</span>
-          </button>
-        ))}
-      </nav>
+        <div className="mt-auto rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3">
+          <div className="flex items-center gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-cyan-400/15 text-sm font-bold text-cyan-500">{session.user.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
+            <span className="min-w-0 flex-1">
+              <strong className="block truncate text-sm">{session.user.name}</strong>
+              <span className="block truncate text-xs text-[var(--muted)]">{session.user.rollNumber || session.user.title || session.user.role}</span>
+            </span>
+            <button className="icon-button" onClick={logout} type="button" title="Sign out"><LogOut size={17} /></button>
+          </div>
+        </div>
+      </aside>
 
-      <DetailModal subject={modalSubject} onClose={() => setModalSubject(null)} />
+      {mobileNavOpen && <button className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileNavOpen(false)} type="button" aria-label="Close navigation overlay" />}
+
+      <div className="lg:pl-[268px]">
+        <header className="sticky top-0 z-30 flex h-[72px] items-center border-b border-[var(--line)] bg-[var(--page)]/85 px-4 backdrop-blur-xl sm:px-7 lg:px-9">
+          <button className="icon-button mobile-only mr-3" onClick={() => setMobileNavOpen(true)} type="button" aria-label="Open navigation"><Menu size={20} /></button>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-base font-semibold sm:text-lg">{title}</h1>
+            <p className="hidden truncate text-xs text-[var(--muted)] sm:block">{subtitle}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="hidden items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/8 px-3 py-2 text-xs font-medium text-emerald-500 md:flex"><span className="size-1.5 rounded-full bg-emerald-400" />System operational</span>
+            <button className="icon-button" onClick={() => setTheme((current) => current === "light" ? "dark" : "light")} type="button" aria-label={`Use ${theme === "light" ? "dark" : "light"} theme`} title={`Use ${theme === "light" ? "dark" : "light"} theme`}>{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}</button>
+            <button className="icon-button relative" type="button" aria-label="Notifications"><Bell size={18} /><span className="absolute right-2 top-2 size-1.5 rounded-full bg-amber-400" /></button>
+            <button className="hidden items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm font-medium sm:flex" type="button">
+              {session.user.role === "student" ? <GraduationCap size={17} /> : <Users size={17} />}
+              {session.user.role === "student" ? "Student" : "Faculty"}
+              <ChevronDown size={14} className="text-[var(--muted)]" />
+            </button>
+          </div>
+        </header>
+
+        <main className="min-h-[calc(100vh-72px)] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
+          <AnimatePresence mode="wait">
+            <motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.18 }}>
+              {content}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
     </div>
   );
 }
