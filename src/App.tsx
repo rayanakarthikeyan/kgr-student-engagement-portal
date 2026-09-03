@@ -207,7 +207,7 @@ export default function App() {
               <Command size={21} strokeWidth={2.5} />
             </span>
             <span>
-              <strong className="block text-[15px] leading-tight text-[var(--ink)]">KG Reddy CET</strong>
+              <strong className="block text-[15px] leading-tight text-[var(--ink)]">KG Reddy College of Engineering and Technology</strong>
               <span className="text-xs text-[var(--muted)]">Academic Learning Platform</span>
             </span>
           </button>

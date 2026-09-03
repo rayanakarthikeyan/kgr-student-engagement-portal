@@ -39,7 +39,7 @@ export function AuthScreen({ onAuthenticated, theme, onToggleTheme }: AuthScreen
           <div className="auth-grid absolute inset-0 opacity-70" />
           <div className="relative z-10 flex items-center gap-3">
             <span className="grid size-11 place-items-center rounded-lg bg-cyan-400 text-slate-950"><Command size={23} strokeWidth={2.5} /></span>
-            <div><strong className="block text-base text-[var(--ink)]">KG Reddy CET</strong><span className="text-xs text-[var(--muted)]">Academic Learning Platform</span></div>
+            <div><strong className="block text-base text-[var(--ink)]">KG Reddy College of Engineering and Technology</strong><span className="text-xs text-[var(--muted)]">Academic Learning Platform</span></div>
           </div>
 
           <div className="relative z-10 max-w-[620px]">
@@ -65,7 +65,7 @@ export function AuthScreen({ onAuthenticated, theme, onToggleTheme }: AuthScreen
 
         <section className="flex min-h-screen items-center justify-center p-5 sm:p-8 lg:p-12">
           <motion.div className="w-full max-w-[470px]" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: .35 }}>
-            <div className="mb-9 flex items-center gap-3 lg:hidden"><span className="grid size-10 place-items-center rounded-lg bg-cyan-400 text-slate-950"><Command size={21} /></span><div><strong className="block">KG Reddy CET</strong><span className="text-xs text-[var(--muted)]">Academic Learning Platform</span></div></div>
+            <div className="mb-9 flex items-center gap-3 lg:hidden"><span className="grid size-10 place-items-center rounded-lg bg-cyan-400 text-slate-950"><Command size={21} /></span><div><strong className="block">KG Reddy College of Engineering and Technology</strong><span className="text-xs text-[var(--muted)]">Academic Learning Platform</span></div></div>
             <p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--accent)]">Secure access</p>
             <h2 className="mt-3 text-3xl font-semibold text-[var(--ink)]">{registering ? "Create your student account" : "Welcome back"}</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{registering ? "Use your institutional details to begin enrollment." : "Sign in to continue to your academic workspace."}</p>
